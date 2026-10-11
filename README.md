@@ -18,8 +18,9 @@ techsets/  -> share/raw/techsetdefs_stable  and  techsetdefs_stable_toolsgfx
 Glass or polymer drawn in one pass. It shows the scene behind refracted through the normal map and blurred
 (Vogel disc, radius x thickness x roughness), tinted by a transmission map and darkened by thickness. On top go the
 surface terms, lit the way the stock lit shaders light a surface: the reflection comes from BO3's reflection probes
-(box-projected local probes over the global probe, weighted by the stock env BRDF) and the albedo dirt from the probe
-irradiance volumes. A GGX key-light highlight sits on top. Where no probe data is bound (APE), the reflection falls
+(box-projected local probes over the global probe, weighted by the stock env BRDF) plus the shadowed sun's specular,
+and the albedo dirt from the probe irradiance volumes and the sun. An optional camera-relative key-light highlight
+sits on top (Highlight Strength 0 turns it off). Where no probe data is bound (APE), the reflection falls
 back to the blurred scene around the part.
 
 | techset | use on | game render flags |
@@ -35,21 +36,30 @@ black or stale. In APE / Apex both draw as transparents through `oit`. Apex bind
 Refraction projects the bent ray through the draw's own view-projection, so it holds for the viewmodel FOV and
 for world glass at any distance. `cg01_w` is the depth behind the surface in world units: ~0.5 for a mag, 2-8 for a
 window.
-## Probe lighting (`blak/blak_lighting.h`)
+## Probe and sun lighting (`blak/blak_lighting.h`)
 
-BO3's forward probe lighting for custom lit or transparent shaders, reversed from the stock `lit_transparent` pixel
-shader (and the deferred lighting shader, which runs the same code). It covers the tiled probe culling, override
-probes, attenuation volumes, box-projected reflections, the diffuse probe volumes, the global probe fallback, the
-Toksvig gloss filter and the env BRDF. Call `Blak_ProbeLighting()` and scale the result by `BLAK_OUTPUT_SCALE`.
+BO3's forward lighting for custom lit or transparent shaders, reversed from the stock `lit_transparent` pixel shader
+(the deferred lighting shader runs the same probe code):
 
-- Game: the linker binds the lighting resources by name (`refProbeConstants`, `visibleProbes`,
-  `gReflectionProbeArray`...), so the technique only declares the shared `samplerLinear` / `samplerLinearClamp`.
-  Keep your material textures and samplers off its registers.
-- Tools: APE and Apex bind the tools' names (`gProbes`, `gProbeCullResults`...); APE's preview has only the global
-  probe.
+- `Blak_ProbeLighting()`: tiled probe culling, override probes, attenuation volumes, box-projected local reflection
+  probes, the diffuse probe volumes and the global probe fallback. `Blak_EnvBRDF()` and `Blak_ToksvigGloss()` are the
+  stock env BRDF and gloss filter.
+- `Blak_SunLighting()`: the sun's GGX specular and diffuse. `Blak_SunShadow()`: the stock sun shadow lookup (the
+  three cascades, with the translucent shadow map and the dithered option in game, and the static sun shadow tree
+  beyond them).
 
-Checked in game against stock `lit` on the same mesh under the same probes: under the global
-probe and inside a local probe's box, both within ~10% (the rest is the stock material's other lighting terms).
+Results are in lighting units: scale them by `BLAK_OUTPUT_SCALE`.
+
+- Game: the linker binds the lighting resources by name (`refProbeConstants`, `visibleProbes`, `gReflectionProbeArray`,
+  `gSunShadowTree`, `gSunShadowmapArray`, `ShadowSamplerComparisonState`...), so the technique only declares the shared
+  `samplerLinear` / `samplerLinearClamp`. Keep your material textures and samplers off its registers.
+- Tools: APE and Apex bind the tools' names (`gProbes`, `gProbeCullResults`...). APE's preview has only the global probe.
+
+Checked in game (zm_repl), as linear frost/stock on the same mesh with the same albedo. Against the stock
+`lit_transparent` shader (the forward path this ports): 0.99-1.03 inside a local probe's box, 1.05 mean (0.000 median
+per-pixel difference) under the global probe, and 1.02 facing the sun. Against the deferred `lit` shader: 1.035 in the
+open sun and 1.045 inside a cast shadow (1.06 with the shadow switched off). The deferred pass also adds screen-space AO
+and weighted the local probe lower in testing, so ambient-only and local-probe areas differ more from it.
 
 ## License
 

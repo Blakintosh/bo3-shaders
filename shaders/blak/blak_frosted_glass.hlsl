@@ -336,6 +336,8 @@ float4 ps_main(in VertexShaderOutput IN, in bool isFrontFace : SV_IsFrontFace) :
 	float3 R = reflect(-V, N);
 	float3 env, ambient;
 	float reflectance, probeWeight = 0.0;
+	float3 sunSpecular = 0.0;
+	float sunVisibility = 0.0;
 	bool probes = Blak_ProbesBound();
 	if (probes)
 	{
@@ -351,6 +353,13 @@ float4 ps_main(in VertexShaderOutput IN, in bool isFrontFace : SV_IsFrontFace) :
 		ambient = probe.diffuse * BLAK_OUTPUT_SCALE;
 		probeWeight = probe.weight;
 		reflectance = Blak_EnvBRDF(NdotV, specGloss, fresnelF0);
+
+		// The sun on top, as the stock lit shaders add it
+		BlakSunLighting sunLight = Blak_SunLighting(N, V, specGloss, fresnelF0);
+		float sunShadow = dot(sunLight.diffuse, 1.0) > 0.0 ? Blak_SunShadow(IN.CameraPos, IN.Position.xy) : 0.0;
+		sunVisibility = sunShadow;
+		sunSpecular = sunLight.specular * sunShadow * BLAK_OUTPUT_SCALE;
+		ambient += sunLight.diffuse * sunShadow * BLAK_OUTPUT_SCALE;
 	}
 	else
 	{
@@ -387,13 +396,14 @@ float4 ps_main(in VertexShaderOutput IN, in bool isFrontFace : SV_IsFrontFace) :
 	reflectance = saturate(reflectance * reflectionStrength);
 	float3 colour = behind * (1.0 - reflectance)
 		+ env * reflectance
+		+ sunSpecular * reflectionStrength
 		+ highlight
 		+ albedo * ambient * albedoStrength;
 
 	// Debug: 1 thickness, 2 roughness, 3 transmission, 4 normal, 5 reflectance (scaled by the local brightness),
 	// 6 raw scene at the pixel, 7 blurred scene before tint (6 and 7 should match what is behind),
 	// 8 probe reflection (radiance, before the env BRDF), 9 probe irradiance,
-	// 10 probe coverage (r local probe weight, g probe data bound, b local probes in the map)
+	// 10 probe coverage (r local probe weight, g probe data bound, b local probes in the map), 11 sun visibility (shadow)
 	if (debugView > 0.5)
 	{
 		if (debugView < 1.5)		colour = thickness.xxx;
@@ -406,6 +416,7 @@ float4 ps_main(in VertexShaderOutput IN, in bool isFrontFace : SV_IsFrontFace) :
 		else if (debugView < 7.5)	colour = BlurScene(sceneUV, blurUV, pixel, rotation, BLUR_TAPS, mipCount);
 		else if (debugView < 8.5)	colour = env;
 		else if (debugView < 9.5)	colour = ambient;
+		else if (debugView > 10.5)	colour = (probes ? Blak_SunShadow(IN.CameraPos, IN.Position.xy) : 0.0).xxx * 0.3;
 		else						colour = float3(probeWeight, probes ? 1.0 : 0.0, BLAK_NUM_PROBES > 0 ? 1.0 : 0.0)
 										* Luminance(iResolveScene.SampleLevel(sceneSampler, uv, 4).rgb + 0.05) * 4.0;
 	}

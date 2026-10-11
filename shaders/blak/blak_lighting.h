@@ -81,18 +81,67 @@ SamplerState gBilinearClampSampler : register(s13);
 #define BLAK_GLOBAL_EXPOSURE		gScene.sun.globalProbeExposure
 #define BLAK_GLOBAL_PROBE(i)		asfloat(gScene.globalProbe.data[i])
 #define BLAK_OUTPUT_SCALE			gScene.invExposure
+#define BLAK_SUN					gScene.sun
+#define BlakSSTLightingConstants	SSTLightingConstants
+
+StructuredBuffer<uint> gSunShadowTree : register(t40);
+Texture2DArray<float> gSunShadowmapArray : register(t54);
+SamplerComparisonState gCmpBilinearClampSampler : register(s15);
 #define BLAK_CUBE_SAMPLER			gTrilinearClampSampler
 #define BLAK_VOLUME_SAMPLER			gBilinearClampSampler
 #define BLAK_PROBE_WORD(c)			gProbeCullResults.Load(int4(c, 0))
 #else
+// LightingGlobals.sunConstants (the tools' CoreSunConstants)
+struct BlakSSTConstants
+{
+	float2 dimensionInTiles;
+	float inchesPerTexel;
+	float spanInInches;
+};
+
+struct BlakSSTLightingConstants
+{
+	BlakSSTConstants constants;
+	row_major float4x4 offToPinTransform;
+	float coordScale;
+	uint rootOffset;
+	uint2 pad0;
+};
+
+struct BlakSunConstants
+{
+	float3 wldDir;
+	float splitDepthOffset;
+	float3 color;
+	float specScale;
+	float globalProbeExposure;
+	float3 avgGlobalProbeColor;
+	float4 splitPinTransform[3];
+	uint sunCookieIndex;
+	float sunCookieIntensity;
+	float sunVolumetricCookieIntensity;
+	uint toolsGfxDisableSunShadow;
+	float4 sunCookieTransform[2];
+	float intensity;
+	int splitArrayOffset;
+	float2 pad0;
+	BlakSSTLightingConstants sstLightingConstants;
+};
+
 cbuffer LightingGlobals : register(b2)
 {
 	uint blakNumLights				: packoffset(c0.x);
 	uint blakNumRefProbes			: packoffset(c0.y);
-	float blakGlobalProbeExposure	: packoffset(c19.x);	// sunConstants.globalProbeExposure
+	BlakSunConstants blakSun		: packoffset(c17);		// sunConstants
 	uint4 blakGlobalProbeData[3]	: packoffset(c35);		// globalProbeConstants
 	uint blakNumOverrideProbes		: packoffset(c58.x);
+	uint blakEnableDitheredShadow	: packoffset(c58.y);
 }
+
+StructuredBuffer<uint> gSunShadowTree : register(t23);
+Texture2DArray<float> gSunShadowmapArray : register(t13);
+Texture2DArray<float> gTransShadowmapArray : register(t31);
+SamplerComparisonState ShadowSamplerComparisonState : register(s13);
 
 Texture2D<float2> gEnvBRDFGeneric : register(t5);
 Texture2DArray<uint> visibleProbes : register(t7);
@@ -111,9 +160,10 @@ SamplerState samplerLinearClamp : register(s3);
 #define BLAK_NUM_LIGHTS				blakNumLights
 #define BLAK_NUM_PROBES				blakNumRefProbes
 #define BLAK_NUM_OVERRIDE_PROBES	blakNumOverrideProbes
-#define BLAK_GLOBAL_EXPOSURE		blakGlobalProbeExposure
+#define BLAK_GLOBAL_EXPOSURE		blakSun.globalProbeExposure
 #define BLAK_GLOBAL_PROBE(i)		asfloat(blakGlobalProbeData[i])
 #define BLAK_OUTPUT_SCALE			relHDRExposure.y
+#define BLAK_SUN					blakSun
 #define BLAK_CUBE_SAMPLER			samplerLinear
 #define BLAK_VOLUME_SAMPLER			samplerLinearClamp
 #define BLAK_PROBE_WORD(c)			visibleProbes.Load(int4(c, 0))
@@ -337,6 +387,191 @@ float Blak_ToksvigGloss(float gloss, float variance)
 {
 	float v = min(variance * variance * 0.333333, 1.0);
 	return max(-log2(exp2(-17.0 * saturate(gloss)) + v) * 0.0588235, 0.0);
+}
+
+// ---- Sun shadow: the stock lit shaders' lookup ----
+// The position goes into "pin" space (the sun's view). Within the three cascades it is a comparison lookup of the
+// cascade shadow maps (in the game also the translucent-shadow map, and an 8-tap dithered blend into the next cascade
+// when dithered shadows are on); beyond them it is the static sun shadow tree (SST): a quadtree of occluder heights,
+// lit when the occluder height is not below the point (less two texels).
+
+// Occluder height at a pin-space xy, from the SST
+float Blak_SSTHeight(float3 pin)
+{
+	BlakSSTLightingConstants sst = BLAK_SUN.sstLightingConstants;
+	float tileScale = 1.0 / (128.0 * sst.constants.inchesPerTexel);
+	float3 c = float3(pin.x * tileScale + 0.5 * sst.constants.dimensionInTiles.x, -pin.y * tileScale + 0.5 * sst.constants.dimensionInTiles.y,
+		pin.x * tileScale + 0.5 * sst.constants.dimensionInTiles.x);
+	c = min(max(c, 0.0), sst.constants.dimensionInTiles.xyx - 0.0078125);
+	float2 cell = floor(c.zy * sst.coordScale);
+	uint index = (uint)(cell.y * sst.constants.dimensionInTiles.x * sst.coordScale + cell.x) + sst.rootOffset;
+	uint node = gSunShadowTree[index];
+	if (node & 0x40000000)
+		return asfloat(node << 2);									// the whole tile at one height
+
+	// Texel within the tile, 0..127 (x twice: the 2D descent reads .zy, the leaf reads .x)
+	uint base = index + (node & 0x01ffffff);
+	uint3 t = (uint3)(frac(c * (float)(node >> 25)) * 128.0);
+
+	// Up to two levels of 2x2 nodes with 13-bit child offsets
+	uint n0 = gSunShadowTree[base];
+	uint stop0 = n0 & 0xc0000000;
+	uint pick = (t.y >> 6) ? n0 : gSunShadowTree[base + 1];
+	pick = ((t.z >> 6) ? (pick >> 13) : pick) & 8191;
+	uint i1 = pick + base;
+	uint n1 = gSunShadowTree[i1];
+	uint3 cur = stop0 ? uint3(base, 0, n0) : uint3(i1, 1, n1);		// (index, level, node)
+	uint shift = stop0 ? 6 : 5;
+	uint2 bits = (t.zy >> shift) & 1;
+	uint stop1 = cur.z & 0xc0000000;
+	pick = bits.y ? cur.z : gSunShadowTree[cur.x + 1];
+	pick = (bits.x ? (pick >> 13) : pick) & 8191;
+	uint i2 = pick + cur.x;
+	uint n2 = gSunShadowTree[i2];
+	cur = stop1 ? cur : uint3(i2, cur.y + 1, n2);
+	cur = stop0 ? uint3(base, 0, n0) : cur;
+
+	// Up to three levels of 4-way nodes with 10-bit child offsets
+	if ((cur.z & 0xc0000000) == 0)
+	{
+		uint2 q = t.zy >> (6 - cur.y);
+		uint o = ((cur.z | 0x40000000) >> ((((q.y & 1) << 1) | (q.x & 1)) * 10)) & 1023;
+		uint ia = o + cur.x;
+		uint na = gSunShadowTree[ia];
+		uint stopA = na & 0xc0000000;
+
+		q = t.zy >> (6 - (cur.y + 1));
+		o = ((na | 0x40000000) >> ((((q.y & 1) << 1) | (q.x & 1)) * 10)) & 1023;
+		uint ib = o + ia;
+		uint nb = gSunShadowTree[ib];
+		uint3 b3 = stopA ? uint3(ia, cur.y + 1, na) : uint3(ib, cur.y + 2, nb);
+
+		q = t.zy >> (6 - b3.y);
+		uint stopB = b3.z & 0xc0000000;
+		o = ((b3.z | 0x40000000) >> ((((q.y & 1) << 1) | (q.x & 1)) * 10)) & 1023;
+		uint ic = o + b3.x;
+		uint nc = gSunShadowTree[ic];
+		uint2 r = stopB ? uint2(b3.x, b3.z) : uint2(ic, nc);
+		cur.xz = stopA ? uint2(ia, na) : r;
+	}
+
+	if ((cur.z & 0xc0000000) == 0)
+	{
+		// Height texels: 8-bit or 16-bit, over [base, base + range]
+		float lo = (float)((cur.z >> 15) & 0x3fff) * sst.constants.spanInInches * 6.10351563e-05;
+		float range = (float)(cur.z & 0x7fff) * sst.constants.spanInInches * 3.05185094e-05;
+		uint w8 = gSunShadowTree[(t.y & 3) + cur.x + 1];
+		float h8 = (float)((w8 >> ((t.x & 3) << 3)) & 255) * range * 0.00392156886 + lo;
+		uint w16 = gSunShadowTree[((t.y & 3) << 1) + 1 + ((t.z >> 1) & 1) + cur.x];
+		float h16 = (float)((w16 >> ((t.z & 1) << 4)) & 0xffff) * range * 1.52590219e-05 + lo;
+		return (cur.z & 0x20000000) ? h8 : h16;
+	}
+	// A plane: height + slopes (half floats) in x and y
+	uint slopes = (cur.z & 0x80000000) ? gSunShadowTree[cur.x + 1] : 0;
+	return asfloat(cur.z << 2) + pin.x * f16tof32(slopes >> 16) + pin.y * f16tof32(slopes & 0xffff);
+}
+
+// Sun visibility, 0..1, at a camera-relative position
+float Blak_SunShadow(float3 position, float2 pixel)
+{
+#if TOOLSGFX
+	if (BLAK_SUN.toolsGfxDisableSunShadow == 1)
+		return 1.0;
+#endif
+	float3 pin = mul(float4(position, 1.0), BLAK_SUN.sstLightingConstants.offToPinTransform).xyz;
+	float depth = 1.0 - (pin.z - BLAK_SUN.splitDepthOffset) * 6.10351563e-05;
+
+	uint split = 3;
+	float edge = 0.0;
+	if (depth == saturate(depth))
+	{
+		[unroll]
+		for (uint i = 0; i < 3; i++)
+		{
+			float2 d = (pin.xy - BLAK_SUN.splitPinTransform[i].xy) * BLAK_SUN.splitPinTransform[i].z;
+			edge = max(abs(d.x), abs(d.y));
+			if (edge < 1.0)
+			{
+				split = i;
+				break;
+			}
+		}
+	}
+
+	if (split >= 3)
+		return Blak_SSTHeight(pin) < pin.z - 2.0 * BLAK_SUN.sstLightingConstants.constants.inchesPerTexel ? 0.0 : 1.0;
+
+	float2 uv = (pin.xy - BLAK_SUN.splitPinTransform[split].xy) * BLAK_SUN.splitPinTransform[split].z * float2(0.5, -0.5) + 0.5;
+#if TOOLSGFX
+	return gSunShadowmapArray.SampleCmpLevelZero(gCmpBilinearClampSampler, float3(uv, BLAK_SUN.splitArrayOffset + split), depth);
+#else
+	if (blakEnableDitheredShadow == 0)
+	{
+		float3 c = float3(uv, BLAK_SUN.splitArrayOffset + split);
+		float v = saturate(gSunShadowmapArray.SampleCmpLevelZero(ShadowSamplerComparisonState, c, depth)
+			+ gTransShadowmapArray.SampleLevel(samplerLinearClamp, c, 0) - 1.0);
+		return v * v * v;
+	}
+
+	// Dithered: 8 rotated taps, blending into the next cascade near this one's edge
+	static const float2 taps[8] = { float2(-0.808114, 0.808114), float2(0, -1), float2(0.606057, 0.606057), float2(-0.714286, 0),
+		float2(0.404114, -0.404114), float2(0, 0.428571), float2(-0.202057, -0.202057), float2(0.142857, 0) };
+	float angle = frac(52.9829189 * frac(dot((float2)(uint2)pixel, float2(0.0671105608, 0.00583714992)))) * 6.28318548 + gameTick.w;
+	float sn, cs;
+	sincos(angle, sn, cs);
+	uint next = min(split + 1, 2);
+	uint blendFrom = (uint)(28.0 * (1.0 - edge));
+	float2 uvNext = (pin.xy - BLAK_SUN.splitPinTransform[next].xy) * BLAK_SUN.splitPinTransform[next].z * float2(0.5, -0.5) + 0.5;
+	float sum = 0.0;
+	[unroll]
+	for (uint k = 0; k < 8; k++)
+	{
+		bool useNext = blendFrom < k;
+		uint sp = useNext ? next : split;
+		float2 o = float2(dot(taps[k].yx, float2(-sn, cs)), dot(taps[k].yx, float2(cs, sn)));
+		float3 c = float3(o * BLAK_SUN.splitPinTransform[sp].w + (useNext ? uvNext : uv), BLAK_SUN.splitArrayOffset + sp);
+		sum += saturate(gSunShadowmapArray.SampleCmpLevelZero(ShadowSamplerComparisonState, c, depth)
+			+ gTransShadowmapArray.SampleLevel(samplerLinearClamp, c, 0) - 1.0) * 0.125;
+	}
+	return sum * sum * sum;
+#endif
+}
+
+struct BlakSunLighting
+{
+	float3 diffuse;		// multiply by albedo
+	float3 specular;	// already weighted by Fresnel for f0
+};
+
+// The sun, as the stock lit shaders light a surface with it (before its shadow: multiply both terms by it).
+// Specular: GGX with m^2 = 2 / (2 + 2^(17 gloss)), Smith-Schlick visibility, Schlick Fresnel, x sun.specScale.
+BlakSunLighting Blak_SunLighting(float3 N, float3 V, float gloss, float f0)
+{
+	BlakSunLighting sun = (BlakSunLighting)0;
+	float3 L = BLAK_SUN.wldDir;
+	float NdotL = saturate(dot(N, L));
+	if (NdotL <= 0.0)
+		return sun;
+	float NdotV = saturate(dot(N, V));
+	float m2 = 2.0 / (2.0 + exp2(17.0 * gloss));
+	float a = sqrt(m2);
+	float k = (sqrt(a) * 0.5 + 0.5);
+	k = k * k * 0.5;
+	float g1v = NdotV * (1.0 - k) + k;
+	float g1l = NdotL * (1.0 - k) + k;
+	float3 H = normalize(V + L);
+	float NdotH = abs(dot(N, H));
+	float d = NdotH * NdotH * (m2 - 1.0) + 1.0;
+	float spec = m2 * BLAK_SUN.specScale * NdotL * 0.25 / (g1v * g1l * d * d);
+	float fc = saturate(1.0 - dot(H, V));
+	fc = fc * fc * fc * fc * fc;
+	sun.specular = BLAK_SUN.color * spec * (f0 + (1.0 - f0) * fc);
+
+	// Diffuse: N.L, softened at grazing for rough surfaces
+	float w = 1.0 - NdotL * (1.0 - NdotV * 0.5);
+	w = 0.62 - w * w * 0.62;
+	sun.diffuse = BLAK_SUN.color * lerp(NdotL, w, a);
+	return sun;
 }
 
 // The stock env BRDF for a dielectric of reflectance f0: the fraction of the prefiltered radiance reflected
