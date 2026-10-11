@@ -1,0 +1,34 @@
+
+#include "state"
+#include "renderFlags"
+#include "usage"
+#include "blak_frosted_glass_base"
+
+// Frosted / translucent glass in ONE draw, for VIEWMODEL parts (MW see-through mags): the refracted, blurred,
+// tinted scene behind plus the lit surface (Fresnel, reflection, highlight, dirt). See blak/blak_frosted_glass.hlsl.
+// For world geometry and world models use blak_frosted_glass_world (same shader and material fields).
+// Replaces the lit_transparent_plus shell + blak_glass_blur / 3d_scene_blur shell pair: put this on the glass
+// shell and hide the extra distortion shell (skinOverride it to global_invisible).
+//
+// MW image -> slot: _n -> Normal Map, _g -> Gloss Map, _c -> Color Map (dirt / print), _tr -> Transmission Map,
+// _th -> Thickness Map (blur + absorption mask; leave $white for even frosting). Material fields: see
+// include/blak_frosted_glass_base. The same files live in techsetdefs_stable and techsetdefs_stable_toolsgfx.
+
+Globals()
+{
+	category = "Weapons"
+	availablePrefixes = "mc/ mcs/"
+#if TOOLSGFX == "1"
+	// The preview draws transparents through "oit" after the opaque scene is lit; Apex binds that scene here
+	renderFlags = "lit transparent"
+#else
+	// Emissive + current resolve, like blak_glass_blur / blak_scope_lens: the resolve then holds the world and
+	// the viewmodel behind the part. ("lit transparent distortion" drew nothing on the viewmodel.)
+	renderFlags = RenderFlags()
+	{
+		isEmissive = true
+		needCurrentResolve = true
+		needCurrentDepthResolve = true
+	}
+#endif
+}

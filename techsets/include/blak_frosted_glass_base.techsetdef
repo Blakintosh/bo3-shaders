@@ -1,0 +1,317 @@
+// Shared body of blak_frosted_glass (viewmodel) and blak_frosted_glass_world (world geometry and models): the
+// textures, constants and techniques. The two differ only in their Globals (render flags and prefixes): see them.
+
+//----------------------------------------------------------------
+
+Texture( "normalMap" )
+{
+	image = Image( <normalMap, $identitynormalmap> )
+	semantic = "normalMap"
+	usage = "normal map"
+	tweak = Tweak()
+	{
+		category  = "Surface"
+		title     = "Normal Map"
+		sortindex = "1"
+	}
+}
+
+Texture( "glossMap" )
+{
+	image = Image( <cosinePowerMap, $white_gloss> )
+	semantic = "glossMap"
+	usage = "gloss map"
+	tweak = Tweak()
+	{
+		category  = "Surface"
+		title     = "Gloss Map (smudges)"
+		sortindex = "2"
+	}
+}
+
+Texture( "colorMap" )
+{
+	image = Image( <colorMap, $black_diffuse> )
+	semantic = "diffuseMap"
+	usage = "diffuse map"
+	tweak = Tweak()
+	{
+		category  = "Surface"
+		title     = "Color Map (dirt / print, added on top)"
+		sortindex = "3"
+	}
+}
+
+Texture( "transmissionMap" )
+{
+	image = Image( <colorMap00, $white_diffuse> )
+	semantic = "diffuseMap"
+	tweak = Tweak()
+	{
+		category  = "Transmission"
+		title     = "Transmission Map (MW _tr)"
+		sortindex = "10"
+	}
+}
+
+Texture( "thicknessMap" )
+{
+	image = Image( <colorMap01, $white_reveal> )
+	semantic = "revealMap"
+	tweak = Tweak()
+	{
+		category  = "Transmission"
+		title     = "Thickness Map (MW _th, one channel)"
+		sortindex = "11"
+	}
+}
+
+// Constants: one editable field each (a Tweak with a default and range, so a new material works as created).
+// They map to the material's cg01..cg04 values, which existing materials keep.
+
+float1( "blurRadius" )
+{
+	x     = <cg01_x>
+	tweak = Tweak()
+	{
+		category  = "Frost"
+		title     = "Blur Radius (px at 1080p, 0 = clear)"
+		sortindex = "21"
+		default   = "12"
+		range     = "0.0", "128.0", "0.1"
+	}
+}
+
+float1( "thicknessToBlur" )
+{
+	x     = <cg01_y>
+	tweak = Tweak()
+	{
+		category  = "Frost"
+		title     = "Thickness Map -> Blur"
+		sortindex = "22"
+		default   = "0.0"
+		range     = "0.0", "1.0", "0.01"
+	}
+}
+
+float1( "roughnessToBlur" )
+{
+	x     = <cg01_z>
+	tweak = Tweak()
+	{
+		category  = "Frost"
+		title     = "Roughness -> Blur"
+		sortindex = "23"
+		default   = "0.6"
+		range     = "0.0", "1.0", "0.01"
+	}
+}
+
+float1( "refractionDepth" )
+{
+	x     = <cg01_w>
+	tweak = Tweak()
+	{
+		category  = "Frost"
+		title     = "Refraction Depth (units behind the surface)"
+		sortindex = "24"
+		default   = "0.5"
+		range     = "0.0", "64.0", "0.01"
+	}
+}
+
+float1( "fresnelF0" )
+{
+	x     = <cg02_x>
+	tweak = Tweak()
+	{
+		category  = "Surface"
+		title     = "Fresnel F0 (0.04 glass / polymer)"
+		sortindex = "61"
+		default   = "0.04"
+		range     = "0.0", "1.0", "0.001"
+	}
+}
+
+float1( "reflectionStrength" )
+{
+	x     = <cg02_y>
+	tweak = Tweak()
+	{
+		category  = "Surface"
+		title     = "Reflection Strength"
+		sortindex = "62"
+		default   = "1.0"
+		range     = "0.0", "4.0", "0.01"
+	}
+}
+
+float1( "keyLight" )
+{
+	x     = <cg02_z>
+	tweak = Tweak()
+	{
+		category  = "Surface"
+		title     = "Highlight Strength"
+		sortindex = "63"
+		default   = "1.5"
+		range     = "0.0", "16.0", "0.01"
+	}
+}
+
+float1( "albedoStrength" )
+{
+	x     = <cg02_w>
+	tweak = Tweak()
+	{
+		category  = "Surface"
+		title     = "Dirt / Print Strength (Color Map)"
+		sortindex = "64"
+		default   = "0.5"
+		range     = "0.0", "4.0", "0.01"
+	}
+}
+
+float1( "glossMin" )
+{
+	x     = <cg03_x>
+	tweak = Tweak()
+	{
+		category  = "Surface"
+		title     = "Gloss Min (Gloss Map black)"
+		sortindex = "65"
+		default   = "0.4"
+		range     = "0.0", "1.0", "0.01"
+	}
+}
+
+float1( "glossMax" )
+{
+	x     = <cg03_y>
+	tweak = Tweak()
+	{
+		category  = "Surface"
+		title     = "Gloss Max (Gloss Map white)"
+		sortindex = "66"
+		default   = "0.95"
+		range     = "0.0", "1.0", "0.01"
+	}
+}
+
+float1( "absorption" )
+{
+	x     = <cg03_z>
+	tweak = Tweak()
+	{
+		category  = "Transmission"
+		title     = "Absorption (darkens with thickness)"
+		sortindex = "41"
+		default   = "0.0"
+		range     = "0.0", "8.0", "0.01"
+	}
+}
+
+float1( "debugView" )
+{
+	x     = <cg03_w>
+	tweak = Tweak()
+	{
+		category  = "Debug"
+		title     = "Debug View (0 off, 1 thickness, 2 roughness, 3 transmission, 4 normal, 5 fresnel, 6 raw scene, 7 blurred scene)"
+		sortindex = "91"
+		default   = "0"
+		range     = "0", "7", "1"
+	}
+}
+
+float1( "opacity" )
+{
+	x     = <cg04_x>
+	tweak = Tweak()
+	{
+		category  = "Surface"
+		title     = "Opacity"
+		sortindex = "67"
+		default   = "1.0"
+		range     = "0.0", "1.0", "0.01"
+	}
+}
+
+float1( "reflectionOffset" )
+{
+	x     = <cg04_y>
+	tweak = Tweak()
+	{
+		category  = "Surface"
+		title     = "Reflection Offset"
+		sortindex = "68"
+		default   = "0.15"
+		range     = "0.0", "1.0", "0.01"
+	}
+}
+
+float1( "keyLightSize" )
+{
+	x     = <cg04_z>
+	tweak = Tweak()
+	{
+		category  = "Surface"
+		title     = "Highlight Size"
+		sortindex = "69"
+		default   = "0.3"
+		range     = "0.0", "1.0", "0.01"
+	}
+}
+
+float1( "normalStrength" )
+{
+	x     = <cg04_w>
+	tweak = Tweak()
+	{
+		category  = "Surface"
+		title     = "Normal Strength"
+		sortindex = "70"
+		default   = "1.0"
+		range     = "0.0", "2.0", "0.01"
+	}
+}
+Color( "glassTint" )
+{
+	value = "srgb_to_linear( <colorTint3> )"
+	tweak = Tweak()
+	{
+		category  = "Transmission"
+		title     = "Transmission Tint"
+		sortindex = "12"
+	}
+}
+
+//----------------------------------------------------------------
+
+Technique( "lit" )
+{
+	state = State() : "blend"
+	{
+		depthTest  = lessEqual
+		depthWrite = false
+	}
+	source = "blak/blak_frosted_glass.hlsl"
+	vs = VertexShader() {}
+	ps = PixelShader()
+	{
+#if TOOLSGFX != "1"
+		iResolveScene = CodeTexture( "resolvedPostSun" )
+#endif
+		materialSampler = Sampler( "tile both", "mip (1x trilinear)" )
+		sceneSampler = Sampler( "no tile", "mip (1x trilinear)" )
+	}
+}
+
+#if TOOLSGFX == "1"
+Technique( "oit" ) : "lit"
+{
+	state = "fallback + depth + rez"
+	defines += "USE_OIT"
+}
+#endif

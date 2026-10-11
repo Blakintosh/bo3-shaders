@@ -1,0 +1,22 @@
+
+#include "state"
+#include "renderFlags"
+#include "usage"
+#include "blak_frosted_glass_base"
+
+// Frosted / translucent glass in ONE draw, for WORLD geometry (wc/) and world models (mc/ mcs/): windows, screens,
+// bottles. Same shader and material fields as blak_frosted_glass (viewmodel); only the render flags differ.
+// See blak/blak_frosted_glass.hlsl and include/blak_frosted_glass_base.
+
+Globals()
+{
+	category = "Geometry"
+	availablePrefixes = "mc/ mcs/ wc/"
+#if TOOLSGFX == "1"
+	renderFlags = "lit transparent"
+#else
+	// Transparent with an opaque + current resolve before it, like 3d_scene_blur. The viewmodel's emissive flags
+	// don't work here: world draws then read resolvedPostSun before this frame's resolve (stale or black).
+	renderFlags = "lit transparent distortion"
+#endif
+}
