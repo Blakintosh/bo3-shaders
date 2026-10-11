@@ -357,6 +357,10 @@ float4 ps_main(in VertexShaderOutput IN, in bool isFrontFace : SV_IsFrontFace) :
 		// The sun on top, as the stock lit shaders add it
 		BlakSunLighting sunLight = Blak_SunLighting(N, V, specGloss, fresnelF0);
 		float sunShadow = dot(sunLight.diffuse, 1.0) > 0.0 ? Blak_SunShadow(IN.CameraPos, IN.Position.xy) : 0.0;
+#if !TOOLSGFX
+		if (sunShadow > 0.0)
+			sunShadow *= Blak_PlayerSunShadow(IN.CameraPos, N, dot(N, BLAK_SUN.wldDir), IN.Position.xy);
+#endif
 		sunVisibility = sunShadow;
 		sunSpecular = sunLight.specular * sunShadow * BLAK_OUTPUT_SCALE;
 		ambient += sunLight.diffuse * sunShadow * BLAK_OUTPUT_SCALE;
@@ -416,7 +420,14 @@ float4 ps_main(in VertexShaderOutput IN, in bool isFrontFace : SV_IsFrontFace) :
 		else if (debugView < 7.5)	colour = BlurScene(sceneUV, blurUV, pixel, rotation, BLUR_TAPS, mipCount);
 		else if (debugView < 8.5)	colour = env;
 		else if (debugView < 9.5)	colour = ambient;
-		else if (debugView > 10.5)	colour = (probes ? Blak_SunShadow(IN.CameraPos, IN.Position.xy) : 0.0).xxx * 0.3;
+		else if (debugView > 10.5)
+		{
+			float vis = probes ? Blak_SunShadow(IN.CameraPos, IN.Position.xy) : 0.0;
+#if !TOOLSGFX
+			vis *= Blak_PlayerSunShadow(IN.CameraPos, N, dot(N, BLAK_SUN.wldDir), IN.Position.xy);
+#endif
+			colour = vis.xxx * 0.3;
+		}
 		else						colour = float3(probeWeight, probes ? 1.0 : 0.0, BLAK_NUM_PROBES > 0 ? 1.0 : 0.0)
 										* Luminance(iResolveScene.SampleLevel(sceneSampler, uv, 4).rgb + 0.05) * 4.0;
 	}

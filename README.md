@@ -46,20 +46,28 @@ BO3's forward lighting for custom lit or transparent shaders, reversed from the 
   stock env BRDF and gloss filter.
 - `Blak_SunLighting()`: the sun's GGX specular and diffuse. `Blak_SunShadow()`: the stock sun shadow lookup (the
   three cascades, with the translucent shadow map and the dithered option in game, and the static sun shadow tree
-  beyond them).
+  beyond them). `Blak_PlayerSunShadow()`: the game's extra projected shadow around the player, for the viewmodel and
+  the world.
 
 Results are in lighting units: scale them by `BLAK_OUTPUT_SCALE`.
 
 - Game: the linker binds the lighting resources by name (`refProbeConstants`, `visibleProbes`, `gReflectionProbeArray`,
-  `gSunShadowTree`, `gSunShadowmapArray`, `ShadowSamplerComparisonState`...), so the technique only declares the shared
+  `gSunShadowTree`, `gSunShadowmapArray`, `lightConstants`, `gSpotShadowmapArray`, `ShadowSamplerComparisonState`...), so the technique only declares the shared
   `samplerLinear` / `samplerLinearClamp`. Keep your material textures and samplers off its registers.
 - Tools: APE and Apex bind the tools' names (`gProbes`, `gProbeCullResults`...). APE's preview has only the global probe.
 
-Checked in game (zm_repl), as linear frost/stock on the same mesh with the same albedo. Against the stock
-`lit_transparent` shader (the forward path this ports): 0.99-1.03 inside a local probe's box, 1.05 mean (0.000 median
-per-pixel difference) under the global probe, and 1.02 facing the sun. Against the deferred `lit` shader: 1.035 in the
-open sun and 1.045 inside a cast shadow (1.06 with the shadow switched off). The deferred pass also adds screen-space AO
-and weighted the local probe lower in testing, so ambient-only and local-probe areas differ more from it.
+Checked in game (zm_repl) against the stock `lit_transparent` shader (the forward path this ports): the same mesh (the
+riot shield body), the same albedo and the same camera, linear frost/stock over the mesh:
+
+| where | frost / stock | median per-pixel difference |
+|---|---|---|
+| global probe, facing the sun | 1.001 | 0.000 |
+| global probe, inside a cast shadow | 1.002 | 0.000 |
+| local probe box, facing the sun | 0.99 | 0.002 |
+| local probe box, facing away | 0.99-1.03 | 0.006 |
+
+The deferred `lit` shader differs more (0.9-1.15): it adds screen-space AO to ambient and weighted the local probe
+lower in testing. The extra viewmodel/player sun shadow (`viewmodelSunShadowRaw`) is ported but not separately tested.
 
 ## License
 

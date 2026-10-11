@@ -136,7 +136,18 @@ cbuffer LightingGlobals : register(b2)
 	uint4 blakGlobalProbeData[3]	: packoffset(c35);		// globalProbeConstants
 	uint blakNumOverrideProbes		: packoffset(c58.x);
 	uint blakEnableDitheredShadow	: packoffset(c58.y);
+	uint blakViewmodelSunShadowRaw	: packoffset(c53.x);	// the extra player shadow light, +1: viewmodel << 16 | world
 }
+
+// 240 B: a light (lightConstants). The extra player shadow reads: f7 (dword 7) low 16 bits = shadow map slice,
+// f13 = filter radius (uv), f17-f28 = shadow matrix rows 0-2, f33-f36 = uv scale.xz / bias.yw, f37-f40 = uv scale.xy /
+// offset.zw, f41-f42 = depth bias / scale
+struct BlakLightPack
+{
+	uint4 data[15];
+};
+StructuredBuffer<BlakLightPack> lightConstants : register(t12);
+Texture2DArray<float> gSpotShadowmapArray : register(t9);
 
 StructuredBuffer<uint> gSunShadowTree : register(t23);
 Texture2DArray<float> gSunShadowmapArray : register(t13);
@@ -536,6 +547,55 @@ float Blak_SunShadow(float3 position, float2 pixel)
 	return sum * sum * sum;
 #endif
 }
+
+#if !TOOLSGFX
+static const float2 blakShadowTaps[8] = { float2(-0.808114, 0.808114), float2(0, -1), float2(0.606057, 0.606057), float2(-0.714286, 0),
+	float2(0.404114, -0.404114), float2(0, 0.428571), float2(-0.202057, -0.202057), float2(0.142857, 0) };
+
+// The stock extra shadow on the sun around the player: a projected shadow map from a dedicated light, one for the
+// viewmodel (isDepthHack draws) and one for the world, chosen by viewmodelSunShadowRaw. 1 outside its map.
+float Blak_PlayerSunShadow(float3 position, float3 N, float NdotLRaw, float2 pixel)
+{
+	uint light = isDepthHack != 0 ? (blakViewmodelSunShadowRaw >> 16) : (blakViewmodelSunShadowRaw & 0xffff);
+	if (light == 0)
+		return 1.0;
+	BlakLightPack l = lightConstants[light + BLAK_NUM_LIGHTS - 1];
+	float radius = asfloat(l.data[3].y);
+	float4 row0 = float4(asfloat(l.data[4].y), asfloat(l.data[4].z), asfloat(l.data[4].w), asfloat(l.data[5].x));
+	float4 row1 = float4(asfloat(l.data[5].y), asfloat(l.data[5].z), asfloat(l.data[5].w), asfloat(l.data[6].x));
+	float4 row2 = float4(asfloat(l.data[6].y), asfloat(l.data[6].z), asfloat(l.data[6].w), asfloat(l.data[7].x));
+	float4 uvMap = float4(asfloat(l.data[8].y), asfloat(l.data[8].z), asfloat(l.data[8].w), asfloat(l.data[9].x));
+	float4 uvAtlas = float4(asfloat(l.data[9].y), asfloat(l.data[9].z), asfloat(l.data[9].w), asfloat(l.data[10].x));
+	float2 depthMap = float2(asfloat(l.data[10].y), asfloat(l.data[10].z));
+
+	float4 p = float4(position + N * (0.4 - 0.2 * abs(NdotLRaw)), 1.0);
+	float2 uv = float2(dot(row0, p), dot(row1, p)) * float2(0.5, -0.5) + 0.5;
+	uv = (uv + uvAtlas.zw) * uvAtlas.xy;
+	float2 margin = radius / uvMap.xz;
+	if (any(uv >= 1.0 - margin) || any(margin >= uv))
+		return 1.0;
+	float slice = (float)(l.data[1].w & 0xffff);
+	float2 tc = saturate(uv) * uvMap.xz + uvMap.yw;
+	float depth = max(6.10351563e-05, (dot(row2, p) + depthMap.x) / depthMap.y);
+	float v;
+	if (blakEnableDitheredShadow != 0)
+	{
+		float angle = frac(52.9829189 * frac(dot((float2)(uint2)pixel, float2(0.0671105608, 0.00583714992)))) * 6.28318548 + gameTick.w;
+		float sn, cs;
+		sincos(angle, sn, cs);
+		v = 0.0;
+		[unroll]
+		for (uint k = 0; k < 8; k++)
+		{
+			float2 o = float2(dot(blakShadowTaps[k].yx, float2(-sn, cs)), dot(blakShadowTaps[k].yx, float2(cs, sn)));
+			v += gSpotShadowmapArray.SampleCmpLevelZero(ShadowSamplerComparisonState, float3(o * radius + tc, slice), depth) * 0.125;
+		}
+	}
+	else
+		v = gSpotShadowmapArray.SampleCmpLevelZero(ShadowSamplerComparisonState, float3(tc, slice), depth);
+	return v * v * v;
+}
+#endif
 
 struct BlakSunLighting
 {
