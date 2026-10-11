@@ -64,7 +64,7 @@ riot shield body), the same albedo and the same camera, linear frost/stock over 
 | global probe, facing the sun | 1.001 | 0.000 |
 | global probe, inside a cast shadow | 1.002 | 0.000 |
 | local probe box, facing the sun | 0.99 | 0.002 |
-| local probe box, facing away | 0.99-1.03 | 0.006 |
+| local probe box, facing away | 0.99-1.03 | 0.012 |
 
 The deferred `lit` shader differs more (0.9-1.15): it adds screen-space AO to ambient and weighted the local probe
 lower in testing. The extra viewmodel/player sun shadow (`viewmodelSunShadowRaw`) is ported but not separately tested.
