@@ -67,8 +67,9 @@ riot shield body), the same albedo and the same camera, linear frost/stock over 
 | local probe box, facing away | 0.99-1.03 | 0.012 |
 | viewmodel (riot shield inner plate, sunlit, player shadow live) | 1.000-1.001 | 0.000 |
 
-The deferred `lit` shader differs more (0.9-1.15): it adds screen-space AO to ambient and weighted the local probe
-lower in testing.
+At the same spot as the local-probe rows, frost against stock deferred `lit` was 0.97-0.98 (deferred and forward stock
+agree to within 1% on this mesh). On the M13 mag's rounds the frost came out 10-20% darker than stock deferred inside
+the local probe's box, which these tests don't explain.
 
 ## License
 
