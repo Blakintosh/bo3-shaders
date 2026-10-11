@@ -6,7 +6,7 @@ ROOT="${1:-${BO3_ROOT:-/i/SteamLibrary/steamapps/common/Call of Duty Black Ops I
 RAW="$ROOT/share/raw"
 cd "$(dirname "$0")"
 for set in shaders_stable shaders_stable_toolsgfx; do
-	(cd shaders && find . -name '*.hlsl') | while read -r f; do
+	(cd shaders && find . -name '*.hlsl' -o -name '*.h') | while read -r f; do
 		mkdir -p "$RAW/$set/$(dirname "$f")"; cp "shaders/$f" "$RAW/$set/$f"; echo "$set/$f"
 	done
 done

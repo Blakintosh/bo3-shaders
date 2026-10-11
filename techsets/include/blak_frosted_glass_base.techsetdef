@@ -218,10 +218,10 @@ float1( "debugView" )
 	tweak = Tweak()
 	{
 		category  = "Debug"
-		title     = "Debug View (0 off, 1 thickness, 2 roughness, 3 transmission, 4 normal, 5 fresnel, 6 raw scene, 7 blurred scene)"
+		title     = "Debug View (0 off, 1 thickness, 2 roughness, 3 transmission, 4 normal, 5 reflectance, 6 raw scene, 7 blurred scene, 8 probe reflection, 9 probe irradiance, 10 probe coverage)"
 		sortindex = "91"
 		default   = "0"
-		range     = "0", "7", "1"
+		range     = "0", "10", "1"
 	}
 }
 
@@ -302,6 +302,9 @@ Technique( "lit" )
 	{
 #if TOOLSGFX != "1"
 		iResolveScene = CodeTexture( "resolvedPostSun" )
+		// the lit passes' shared samplers, for the probe lighting (blak_lighting.h)
+		samplerLinear = Sampler( "tile both", "mip (1x trilinear)", true )
+		samplerLinearClamp = Sampler( "no tile", "mip (1x trilinear)", true )
 #endif
 		materialSampler = Sampler( "tile both", "mip (1x trilinear)" )
 		sceneSampler = Sampler( "no tile", "mip (1x trilinear)" )

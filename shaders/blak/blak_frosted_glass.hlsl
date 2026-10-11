@@ -1,6 +1,7 @@
 #define PC
 
 #include "Include/Common.hlsl"
+#include "blak/blak_lighting.h"
 
 /*
     Frosted Glass - translucent glass / polymer in ONE draw: viewmodel parts (see-through mags), world windows,
@@ -15,10 +16,11 @@
        with this draw's own view-projection so it holds for the viewmodel FOV and for world glass at any distance),
        blurred with a rotated Vogel disc whose radius is blurRadius x thickness x roughness, tinted by the
        transmission map x tint and darkened by thickness (absorption).
-    2. Surface: Schlick Fresnel, a glossy "environment" reflection taken from the scene itself along the reflected
-       direction, a GGX highlight from a camera-relative key light scaled by the local scene brightness, and the
-       albedo (dirt / print) lit by the same local ambient. BO3's forward light data is not reachable from a custom
-       shader, so (2) is built from the screen: it follows the scene's exposure and colour, not true probe lighting.
+    2. Surface: BO3's own forward probe lighting (blak_lighting.h, reversed from the stock lit_transparent
+       shader): the reflection is the box-projected local reflection probes blended over the global probe, weighted
+       by the stock env BRDF, and the albedo (dirt / print) is lit by the probe irradiance volumes. A GGX highlight
+       from a camera-relative key light sits on top. Where no probe data is bound (APE without lighting), the
+       reflection and ambient fall back to the scene around the part, taken from the screen.
 
     Game: "blend" with depth test, no depth write, emissive + current resolve render flags (resolvedPostSun).
     Tools (APE / Apex): drawn as a transparent through the "oit" technique, which appends a premultiplied fragment
@@ -73,13 +75,14 @@ Texture2D<float4> colorMap : register(t2);
 Texture2D<float4> transmissionMap : register(t3);
 Texture2D<float4> thicknessMap : register(t4);
 #else
-SamplerState materialSampler : register(s3);
-SamplerState sceneSampler : register(s4);
-Texture2D<float4> normalMap : register(t1);
-Texture2D<float4> glossMap : register(t2);
-Texture2D<float4> colorMap : register(t3);
-Texture2D<float4> transmissionMap : register(t4);
-Texture2D<float4> thicknessMap : register(t5);
+// Off the lighting registers the lit passes bind (b2, t5-t19, s2/s3: blak_lighting.h)
+SamplerState materialSampler : register(s0);
+SamplerState sceneSampler : register(s1);
+Texture2D<float4> normalMap : register(t21);
+Texture2D<float4> glossMap : register(t22);
+Texture2D<float4> colorMap : register(t24);
+Texture2D<float4> transmissionMap : register(t25);
+Texture2D<float4> thicknessMap : register(t26);
 #endif
 
 #if USE_OIT
@@ -299,14 +302,16 @@ float4 ps_main(in VertexShaderOutput IN, in bool isFrontFace : SV_IsFrontFace) :
 	float3 tangent = normalize(IN.Tangent) * faceSign;
 	float3 bitangent = normalize(IN.BiTangent) * faceSign;
 
-	float2 nxy = normalMap.Sample(materialSampler, IN.TexCoord).xy * 1.9921875 - 1.0;
-	nxy *= normalStrength;
+	float3 normalTexel = normalMap.Sample(materialSampler, IN.TexCoord).xyz;
+	float2 nxy = (normalTexel.xy * 1.9921875 - 1.0) * normalStrength;
 	float nz = sqrt(saturate(1.0 - dot(nxy, nxy)));
 	float3 N = normalize(tangent * nxy.x + bitangent * nxy.y + geoNormal * nz);
 	float3 V = normalize(-IN.CameraPos);
 	float NdotV = saturate(dot(N, V));
 
 	float gloss = lerp(glossMin, glossMax, glossMap.Sample(materialSampler, IN.TexCoord).x);
+	// The reflection's gloss, Toksvig-filtered by the normal map's variance (its blue channel), as the stock lit shaders do
+	float specGloss = Blak_ToksvigGloss(gloss, normalTexel.z * normalStrength);
 	float roughness = saturate(1.0 - gloss);
 	float thickness = thicknessMap.Sample(materialSampler, IN.TexCoord).x;
 	float3 transmission = transmissionMap.Sample(materialSampler, IN.TexCoord).rgb * glassTint;
@@ -324,24 +329,48 @@ float4 ps_main(in VertexShaderOutput IN, in bool isFrontFace : SV_IsFrontFace) :
 	float3 absorb = exp(-absorption * thickness * (1.0 - transmission));
 	behind *= transmission * absorb;
 
-	// -- Environment: the scene around the part, wide and blurred, along the reflected direction --
+	// -- Fresnel (Schlick, roughness-damped at grazing): the highlight, and the reflection without probe data --
+	float fresnel = fresnelF0 + (max(1.0 - roughness, fresnelF0) - fresnelF0) * pow(1.0 - NdotV, 5.0);
+
+	// -- Environment: BO3's reflection probes and probe irradiance, as the stock lit shaders light a surface --
 	float3 R = reflect(-V, N);
-	float2 reflectUV = uv + float2(dot(R, cameraSide.xyz) * aspect, -dot(R, cameraUp.xyz)) * reflectionOffset;
-	float envRadius = lerp(0.04, 0.18, roughness);
-	float3 env = BlurScene(reflectUV, float2(aspect, 1.0) * envRadius, pixel, rotation, ENV_TAPS, mipCount);
-	float3 ambient = BlurScene(uv, float2(aspect, 1.0) * 0.2, pixel, rotation, ENV_TAPS, mipCount);
+	float3 env, ambient;
+	float reflectance, probeWeight = 0.0;
+	bool probes = Blak_ProbesBound();
+	if (probes)
+	{
+		BlakProbeSurface surf;
+		surf.position = IN.CameraPos;
+		surf.N = N;
+		surf.R = R;
+		surf.gloss = specGloss;
+		surf.NdotV = NdotV;
+		surf.svPosition = IN.Position;
+		BlakProbeLighting probe = Blak_ProbeLighting(surf);
+		env = probe.specular * BLAK_OUTPUT_SCALE;
+		ambient = probe.diffuse * BLAK_OUTPUT_SCALE;
+		probeWeight = probe.weight;
+		reflectance = Blak_EnvBRDF(NdotV, specGloss, fresnelF0);
+	}
+	else
+	{
+		// No probe data: the scene around the part, wide and blurred, along the reflected direction
+		float2 reflectUV = uv + float2(dot(R, cameraSide.xyz) * aspect, -dot(R, cameraUp.xyz)) * reflectionOffset;
+		float envRadius = lerp(0.04, 0.18, roughness);
+		env = BlurScene(reflectUV, float2(aspect, 1.0) * envRadius, pixel, rotation, ENV_TAPS, mipCount);
+		ambient = BlurScene(uv, float2(aspect, 1.0) * 0.2, pixel, rotation, ENV_TAPS, mipCount);
+		reflectance = fresnel;
+	}
 
 	// No scene bound (APE's preview): light the glass from a mid grey instead of drawing it black
 	if (sceneW == 0)
 	{
-		ambient = env = 0.18;
+		if (!probes)
+			ambient = env = 0.18;
 		behind = 0.18 * transmission * absorb;
 	}
 
-	// -- Fresnel (Schlick, roughness-damped at grazing) --
-	float fresnel = fresnelF0 + (max(1.0 - roughness, fresnelF0) - fresnelF0) * pow(1.0 - NdotV, 5.0);
-
-	// -- Key light: GGX highlight from above and behind the camera, scaled by the local scene brightness --
+	// -- Key light: GGX highlight from above and behind the camera, scaled by the local brightness --
 	float3 L = normalize(cameraUp.xyz * 0.75 - cameraLook.xyz * 0.45 + cameraSide.xyz * 0.3);
 	float3 H = normalize(L + V);
 	float NdotL = saturate(dot(N, L));
@@ -354,24 +383,31 @@ float4 ps_main(in VertexShaderOutput IN, in bool isFrontFace : SV_IsFrontFace) :
 	float vis = 0.25 / ((NdotL * (1.0 - k) + k) * (NdotV * (1.0 - k) + k));
 	float3 highlight = D * vis * NdotL * fresnel * keyLight * ambient;
 
-	// -- Composite --
-	float3 colour = behind * (1.0 - fresnel)
-		+ env * fresnel * reflectionStrength
+	// -- Composite: what is not reflected is transmitted --
+	reflectance = saturate(reflectance * reflectionStrength);
+	float3 colour = behind * (1.0 - reflectance)
+		+ env * reflectance
 		+ highlight
 		+ albedo * ambient * albedoStrength;
 
-	// Debug: 1 thickness, 2 roughness, 3 transmission, 4 normal, 5 fresnel (scaled by the local brightness),
-	// 6 raw scene at the pixel, 7 blurred scene before tint (6 and 7 should match what is behind)
+	// Debug: 1 thickness, 2 roughness, 3 transmission, 4 normal, 5 reflectance (scaled by the local brightness),
+	// 6 raw scene at the pixel, 7 blurred scene before tint (6 and 7 should match what is behind),
+	// 8 probe reflection (radiance, before the env BRDF), 9 probe irradiance,
+	// 10 probe coverage (r local probe weight, g probe data bound, b local probes in the map)
 	if (debugView > 0.5)
 	{
 		if (debugView < 1.5)		colour = thickness.xxx;
 		else if (debugView < 2.5)	colour = roughness.xxx;
 		else if (debugView < 3.5)	colour = transmission;
 		else if (debugView < 4.5)	colour = N * 0.5 + 0.5;
-		else if (debugView < 5.5)	colour = fresnel.xxx;
+		else if (debugView < 5.5)	colour = reflectance.xxx;
 		if (debugView < 5.5)		colour *= Luminance(ambient) * 4.0;
 		else if (debugView < 6.5)	colour = iResolveScene.SampleLevel(sceneSampler, uv, 0).rgb;
-		else						colour = BlurScene(sceneUV, blurUV, pixel, rotation, BLUR_TAPS, mipCount);
+		else if (debugView < 7.5)	colour = BlurScene(sceneUV, blurUV, pixel, rotation, BLUR_TAPS, mipCount);
+		else if (debugView < 8.5)	colour = env;
+		else if (debugView < 9.5)	colour = ambient;
+		else						colour = float3(probeWeight, probes ? 1.0 : 0.0, BLAK_NUM_PROBES > 0 ? 1.0 : 0.0)
+										* Luminance(iResolveScene.SampleLevel(sceneSampler, uv, 4).rgb + 0.05) * 4.0;
 	}
 
 #ifdef FROST_DEBUG_SOLID
