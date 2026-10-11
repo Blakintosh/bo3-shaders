@@ -32,6 +32,11 @@ black or stale. In APE / Apex both draw as transparents through `oit`. Apex bind
 Refraction projects the bent ray through the draw's own view-projection, so it holds for the viewmodel FOV and
 for world glass at any distance. `cg01_w` is the depth behind the surface in world units: ~0.5 for a mag, 2-8 for a
 window.
+
+## Credits
+
+These shaders were derived from works by [Scobalula](https://github.com/Scobalula) and [LG](https://github.com/LG-RZ).
+
 ## License
 
 MIT, see [LICENSE](LICENSE).
