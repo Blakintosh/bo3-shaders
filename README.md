@@ -70,6 +70,10 @@ riot shield body), the same albedo and the same camera, linear frost/stock over 
 At the same spot as the local-probe rows, frost against stock deferred `lit` was 0.97-0.98 (deferred and forward stock
 agree to within 1% on this mesh). On the M13 mag's rounds the frost came out 10-20% darker than stock deferred inside
 the local probe's box, which these tests don't explain.
+## Credits
+
+These shaders were derived from works by [Scobalula](https://github.com/Scobalula) and [LG](https://github.com/LG-RZ).
+
 
 ## License
 
