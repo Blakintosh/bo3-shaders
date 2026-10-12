@@ -1,16 +1,16 @@
-#ifndef __COMMON_INCLUDED__
-#define __COMMON_INCLUDED__
+#ifndef BLAK_COMMON_INCLUDED
+#define BLAK_COMMON_INCLUDED
 
 #if TOOLSGFX
-#include "Include/CommonToolsGfx.hlsl"
+#include "blak/blak_common_toolsgfx.h"
 #else
-#include "Include/CommonStable.hlsl"
+#include "blak/blak_common_stable.h"
 #endif
 
 #if DUAL_QUAT_SKINNING
-#include "Include/DualQuaternionSkinning.hlsl"
+#include "blak/blak_dual_quaternion_skinning.h"
 #else
-#include "Include/LinearBlendSkinning.hlsl"
+#include "blak/blak_linear_blend_skinning.h"
 #endif
 
 // What our pixel shader outputs for "gbuffer" techniques, Black Ops III
@@ -139,4 +139,4 @@ void Utility_SkinVertexMotionVector(
 }
 #endif
 
-#endif // __COMMON_INCLUDED__
+#endif // BLAK_COMMON_INCLUDED

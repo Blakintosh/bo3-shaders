@@ -1,5 +1,5 @@
-#ifndef __COMMON_STABLE_STRUCT_INCLUDED__
-#define __COMMON_STABLE_STRUCT_INCLUDED__
+#ifndef BLAK_COMMON_STABLE_STRUCT_INCLUDED
+#define BLAK_COMMON_STABLE_STRUCT_INCLUDED
 
 // The following structures and data were obtained from shaders included in the Black Ops III Mod Tools
 
@@ -19,4 +19,4 @@ struct ModelInstanceData
 	uint 										prevFrameSiegeAnimStateOffset;	// Offset:   20
 };
 
-#endif // __COMMON_STABLE_STRUCT_INCLUDED__
+#endif // BLAK_COMMON_STABLE_STRUCT_INCLUDED

@@ -1,5 +1,5 @@
-#ifndef __QUATERNION_INCLUDED__
-#define __QUATERNION_INCLUDED__
+#ifndef BLAK_QUATERNION_INCLUDED
+#define BLAK_QUATERNION_INCLUDED
 
 float4 Quaternion_FromRotationMatrix(const float3x3 m)
 {
@@ -74,4 +74,4 @@ float3 Quaternion_TransformVector(const float4 quat, const float3 vec)
     return vec + quat.w * t + cross(quat.xyz, t);
 }
 
-#endif // __QUATERNION_INCLUDED__
+#endif // BLAK_QUATERNION_INCLUDED

@@ -1,5 +1,5 @@
-#ifndef __LINEAR_BLEND_INCLUDED__
-#define __LINEAR_BLEND_INCLUDED__
+#ifndef BLAK_LINEAR_BLEND_INCLUDED
+#define BLAK_LINEAR_BLEND_INCLUDED
 
 float3x4 LinearBlend_GetBlendedMatrix(uint4 boneIndices, float4 boneWeights, uint instance)
 {
@@ -45,4 +45,4 @@ void LinearBlend_SkinVertexMotionVector(
 }
 #endif
 
-#endif // __LINEAR_BLEND_INCLUDED__
+#endif // BLAK_LINEAR_BLEND_INCLUDED

@@ -1,5 +1,5 @@
-#ifndef __COMMON_TOOLSGFX_STRUCT_INCLUDED__
-#define __COMMON_TOOLSGFX_STRUCT_INCLUDED__
+#ifndef BLAK_COMMON_TOOLSGFX_STRUCT_INCLUDED
+#define BLAK_COMMON_TOOLSGFX_STRUCT_INCLUDED
 
 // The following structures and data were obtained from shaders included in the Black Ops III Mod Tools
 
@@ -192,4 +192,4 @@ struct CodeObjectBonesConst
 	float4                              extra;
 };
 
-#endif // __COMMON_TOOLSGFX_STRUCT_INCLUDED__
+#endif // BLAK_COMMON_TOOLSGFX_STRUCT_INCLUDED

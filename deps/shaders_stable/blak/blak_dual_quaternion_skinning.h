@@ -1,7 +1,7 @@
-#ifndef __DUAL_QUAT_INCLUDED__
-#define __DUAL_QUAT_INCLUDED__
+#ifndef BLAK_DUAL_QUAT_INCLUDED
+#define BLAK_DUAL_QUAT_INCLUDED
 
-#include "Include/Quaternion.hlsl"
+#include "blak/blak_quaternion.h"
 
 float2x4 DualQuaternion_GetBoneDualQuaternion(uint boneIndex, uint instance)
 {
@@ -107,4 +107,4 @@ void DualQuaternion_SkinVertexMotionVector(
 }
 #endif
 
-#endif // __DUAL_QUAT_INCLUDED__
+#endif // BLAK_DUAL_QUAT_INCLUDED

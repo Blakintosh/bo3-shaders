@@ -5,20 +5,23 @@ A collection of custom shaders I use in Black Ops III.
 Feel free to use/adapt these. I'll share ones from time to time, but note that I focus on my own personal use and may not be able to offer support.
 
 ```
-shaders/                         -> share/raw/shaders_stable  and  shaders_stable_toolsgfx   (one source for game and tools)
-techsets/                        -> share/raw/techsetdefs_stable  and  techsetdefs_stable_toolsgfx
-deps/shaders_stable/Include/     -> share/raw/shaders_stable/Include            (shared headers, game)
-deps/shaders_stable_toolsgfx/Include/ -> share/raw/shaders_stable_toolsgfx/Include  (shared headers, tools)
+shaders/                    -> share/raw/shaders_stable  and  shaders_stable_toolsgfx   (one source for game and tools)
+deps/shaders_stable/        -> share/raw/shaders_stable            (shared headers, game copy)
+deps/shaders_stable_toolsgfx/ -> share/raw/shaders_stable_toolsgfx (shared headers, tools copy)
+techsets/                   -> share/raw/techsetdefs_stable  and  techsetdefs_stable_toolsgfx
 ```
 
-- `./sync.sh [bo3 root]` copies the shaders and techsets into both the game and tools sets. It installs the shared
-  headers only where they're missing, and warns rather than overwriting an existing header that differs.
+Everything installs under `blak/` with `blak_`-prefixed file names, so it can't clash with other shader packs (the
+shader cache keys sources by file name alone, ignoring the folder). Headers must be `.h` and sit one folder deep: the
+linker can't open includes nested deeper.
+
+- `./sync.sh [bo3 root]` copies the shaders, headers and techsets into both the game and tools sets.
 - `./compile_check.sh [shader]` compiles every variant with fxc straight from the repo (no install needed): game and
   tools, `mc/` (skinned) and `wc/` (world), and OIT. Run it before linking.
 
-The shared headers (`Include/Common.hlsl` and what it includes: transforms, skinning, the game and tools constant
-buffers) are community headers built from the Mod Tools' shaders (see Credits). The game and tools copies differ, so
-each set has its own.
+The shared headers (`blak/blak_common.h` and what it includes: transforms, skinning, the game and tools constant
+buffers) are community headers built from the Mod Tools' shaders (see Credits), renamed and with their include guards
+prefixed. The game and tools copies differ, so each set has its own.
 
 ## Frosted glass (`blak_frosted_glass`, `blak_frosted_glass_world`)
 

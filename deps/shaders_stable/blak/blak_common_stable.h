@@ -1,7 +1,7 @@
-#ifndef __COMMON_STABLE_INCLUDED__
-#define __COMMON_STABLE_INCLUDED__
+#ifndef BLAK_COMMON_STABLE_INCLUDED
+#define BLAK_COMMON_STABLE_INCLUDED
 
-#include "Include/CommonStructuresStable.hlsl"
+#include "blak/blak_common_structures_stable.h"
 
 // The following structures and data were obtained from shaders included in the Black Ops III Mod Tools
 
@@ -161,4 +161,4 @@ float4 Transform_ObjectToClipMotionVector(float3 pos)
 {
 	return mul(float4(-motionVectorConstants.prevFrameEyeOffset + pos.xyz, 1.0f), motionVectorConstants.prevFrameOffToClpMatrixFull);
 }
-#endif // __COMMON_STABLE_INCLUDED__
+#endif // BLAK_COMMON_STABLE_INCLUDED

@@ -1,6 +1,6 @@
 #define PC
 
-#include "Include/Common.hlsl"
+#include "blak/blak_common.h"
 #include "blak/blak_lighting.h"
 
 /*

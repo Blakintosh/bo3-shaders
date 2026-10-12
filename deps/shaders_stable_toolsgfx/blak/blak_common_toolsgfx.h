@@ -1,7 +1,7 @@
-#ifndef __COMMON_TOOLSGFX_INCLUDED__
-#define __COMMON_TOOLSGFX_INCLUDED__
+#ifndef BLAK_COMMON_TOOLSGFX_INCLUDED
+#define BLAK_COMMON_TOOLSGFX_INCLUDED
 
-#include "Include/CommonStructuresToolsGfx.hlsl"
+#include "blak/blak_common_structures_toolsgfx.h"
 
 // The following structures and data were obtained from shaders included in the Black Ops III Mod Tools
 
@@ -63,4 +63,4 @@ float4 Transform_ObjectToClip(float3 pos, uint instance)
 	return mul(float4(pos, 1.0f), gScene.transforms.offToClpMatrix);
 }
 
-#endif // __COMMON_TOOLSGFX_INCLUDED__
+#endif // BLAK_COMMON_TOOLSGFX_INCLUDED
