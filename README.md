@@ -5,13 +5,20 @@ A collection of custom shaders I use in Black Ops III.
 Feel free to use/adapt these. I'll share ones from time to time, but note that I focus on my own personal use and may not be able to offer support.
 
 ```
-shaders/   -> share/raw/shaders_stable  and  shaders_stable_toolsgfx      (one source for game and tools)
-techsets/  -> share/raw/techsetdefs_stable  and  techsetdefs_stable_toolsgfx
+shaders/                         -> share/raw/shaders_stable  and  shaders_stable_toolsgfx   (one source for game and tools)
+techsets/                        -> share/raw/techsetdefs_stable  and  techsetdefs_stable_toolsgfx
+deps/shaders_stable/Include/     -> share/raw/shaders_stable/Include            (shared headers, game)
+deps/shaders_stable_toolsgfx/Include/ -> share/raw/shaders_stable_toolsgfx/Include  (shared headers, tools)
 ```
 
-- `./sync.sh [bo3 root]` copies everything into both the game and tools sets.
-- `./compile_check.sh [shader]` compiles every variant with fxc against the install's includes: game and tools,
-  `mc/` (skinned) and `wc/` (world), and OIT. Run it before linking.
+- `./sync.sh [bo3 root]` copies the shaders and techsets into both the game and tools sets. It installs the shared
+  headers only where they're missing, and warns rather than overwriting an existing header that differs.
+- `./compile_check.sh [shader]` compiles every variant with fxc straight from the repo (no install needed): game and
+  tools, `mc/` (skinned) and `wc/` (world), and OIT. Run it before linking.
+
+The shared headers (`Include/Common.hlsl` and what it includes: transforms, skinning, the game and tools constant
+buffers) are community headers built from the Mod Tools' shaders (see Credits). The game and tools copies differ, so
+each set has its own.
 
 ## Frosted glass (`blak_frosted_glass`, `blak_frosted_glass_world`)
 
