@@ -18,7 +18,12 @@ cached by name) and are `.h`, with `BLAK_` include guards. Includes go one folde
 failed to open in the stock linker. Game and tools differences live in one file under `TOOLSGFX` (`#if TOOLSGFX` in
 HLSL, `#if TOOLSGFX == "1"` in techsetdefs, as the stock techsets do).
 
-- `./sync.sh [bo3 root]` copies the shaders, headers and techsets into both the game and tools sets.
+- `./sync.sh [bo3 root]` copies the shaders, headers and techsets into both the game and tools sets (for
+  development; users get the Blak Shaders setup).
+- `components.json` splits the files into installer components: `blak-shader-common` (the shared headers and
+  `blak_lighting.h`), `blak-parallax`, `blak-tessellation` and `blak-frosted-glass`. Only tessellation needs tool
+  patches. `./release.ps1` checks that every file belongs to exactly one component and packs
+  `artifactslak-shaders-<VERSION>-win-x64.zip` with its manifest.
 - `./compile_check.sh [shader]` compiles every variant with fxc straight from the repo (no install needed): each entry
   point the file has (local, hull, domain, vertex, pixel), game and tools, `mc/` (skinned) and `wc/` (world), OIT, and
   the blend layer counts. Run it before linking.
@@ -32,9 +37,11 @@ prefixed. The game and tools copies differ, so each set has its own.
 `lit_advanced_fullspec_parallax` (POM), `lit_advanced_fullspec_parallax_tess` (tessellated and displaced),
 `lit_advanced_fullspec_blend_tess` (two layers by vertex alpha) and `lit_advanced_fullspec_blend2_tess` /
 `blend3_tess` / `blend4_tess` (2-4 layers by vertex colour, alpha scales the height), plus the decals that follow
-them: `lit_decal_reveal_conform`, `lit_decal_conform` and `lit_decal_reveal_tess`. They need the tessellation linker
-feature (built into Dragon; the stock linker needs the bo3-linker-patches hook) and, to show in Radiant / APE, the
-TessTopology MTPlugin. Controls, modes and what was verified: [docs/tessellation.md](docs/tessellation.md).
+them: `lit_decal_reveal_conform`, `lit_decal_conform` and `lit_decal_reveal_tess`. POM alone needs nothing extra. The
+tessellated ones need the tessellation linker
+feature (built into Dragon; the stock linker needs the bo3-mt-patches linker hook and plugin), the bo3-mt-patches
+cod2map plugin for bullet collision on the relief, and, to show in Radiant / APE, the TessTopology MTPlugin
+(mt-plugins). Controls, modes and what was verified: [docs/tessellation.md](docs/tessellation.md).
 
 ## Frosted glass (`blak_frosted_glass`, `blak_frosted_glass_world`)
 

@@ -1,0 +1,81 @@
+{
+  "schema": "gscode.components/0",
+  "release": "blak-shaders",
+  "repo": "Blakintosh/bo3-shaders",
+  "about": "What an installer installs, per component. Paths are relative to the BO3 folder and are where sync.sh puts each file: shaders/ into both shader sets, deps/<set>/ into its own set, techsets/ into both techset sets. A * matches any run of characters, slashes included. Every component shares the release version (VERSION). release.ps1 checks that every installed file belongs to exactly one component, then writes blak-shaders.json into the zip with the version and each file's path, size and SHA-256.",
+  "components": [
+    {
+      "id": "blak-shader-common",
+      "name": "Shared shader headers",
+      "summary": "The transforms, skinning, constant buffers and forward lighting every Blak shader includes. Comes with any shader that needs it.",
+      "provides": ["shaders.blak-common@1"],
+      "files": [
+        { "glob": "share/raw/shaders_stable*/blak/blak_common*.h" },
+        { "glob": "share/raw/shaders_stable*/blak/blak_dual_quaternion_skinning.h" },
+        { "glob": "share/raw/shaders_stable*/blak/blak_linear_blend_skinning.h" },
+        { "glob": "share/raw/shaders_stable*/blak/blak_quaternion.h" },
+        { "glob": "share/raw/shaders_stable*/blak/blak_lighting.h" }
+      ]
+    },
+    {
+      "id": "blak-parallax",
+      "name": "Parallax",
+      "summary": "lit_advanced_fullspec_parallax: parallax occlusion mapping on world geometry and models. Needs no tool patches.",
+      "provides": ["shaders.parallax@1"],
+      "requires": [{ "component": "blak-shader-common" }],
+      "files": [
+        { "glob": "share/raw/shaders_stable*/blak/blak_gbuffer_ps_lit_parallax.hlsl" },
+        { "glob": "share/raw/shaders_stable*/blak/blak_gbuffer_vs_lit_parallax.hlsl" },
+        { "glob": "share/raw/shaders_stable*/blak/gbuffer_vs_lit_tools.h" },
+        { "glob": "share/raw/shaders_stable*/blak/tess_triplanar.h" },
+        { "glob": "share/raw/techsetdefs_stable*/include/blak_parallax_base.techsetdef" },
+        { "glob": "share/raw/techsetdefs_stable*/geometry_advanced/lit_advanced_fullspec_parallax.techsetdef" }
+      ]
+    },
+    {
+      "id": "blak-tessellation",
+      "name": "Tessellation",
+      "summary": "Surfaces that tessellate and displace up close (parallax, two-layer and 2-4 layer blends) and the decals that follow them.",
+      "provides": ["shaders.tessellation@1"],
+      "requires": [
+        { "component": "blak-shader-common" },
+        { "component": "blak-parallax" },
+        { "capability": "link.tessellation", "why": "the stock linker drops tessellated draws without it; Dragon or the bo3-mt-patches linker plugin provides it" },
+        { "capability": "compile.tess-collision", "why": "bullets hit the flat patch, not the displaced surface, without it" }
+      ],
+      "recommends": [
+        { "capability": "editor.tess-preview", "why": "tessellated surfaces don't draw in Radiant and APE without TessTopology" },
+        { "capability": "link.tessellation.material-controls", "why": "spacing, near and far as material settings need Dragon to link the map" }
+      ],
+      "files": [
+        { "glob": "share/raw/shaders_stable*/blak/blak_tess_common.hlsl" },
+        { "glob": "share/raw/shaders_stable*/blak/tess_blend.h" },
+        { "glob": "share/raw/shaders_stable*/blak/blak_gbuffer_ps_lit_blend.hlsl" },
+        { "glob": "share/raw/shaders_stable*/blak/blak_gbuffer_tess_*.hlsl" },
+        { "glob": "share/raw/shaders_stable*/blak/blak_shadow_tess.hlsl" },
+        { "glob": "share/raw/shaders_stable*/blak/tess_overlay_wireframe.hlsl" },
+        { "glob": "share/raw/techsetdefs_stable*/include/blak_tess_base.techsetdef" },
+        { "glob": "share/raw/techsetdefs_stable*/include/blak_tess_decal_base.techsetdef" },
+        { "glob": "share/raw/techsetdefs_stable*/geometry_advanced/lit_advanced_fullspec_*_tess.techsetdef" },
+        { "glob": "share/raw/techsetdefs_stable*/decal/lit_decal_conform.techsetdef" },
+        { "glob": "share/raw/techsetdefs_stable*/decal/lit_decal_reveal_conform.techsetdef" },
+        { "glob": "share/raw/techsetdefs_stable*/decal/lit_decal_reveal_tess.techsetdef" }
+      ]
+    },
+    {
+      "id": "blak-frosted-glass",
+      "name": "Frosted glass",
+      "summary": "See-through glass and polymer for viewmodel parts and world brushes. Needs no tool patches.",
+      "provides": ["shaders.frosted-glass@1"],
+      "requires": [{ "component": "blak-shader-common" }],
+      "recommends": [
+        { "component": "apex", "version": ">=0.3", "why": "APE lights it from flat grey, with no see-through" }
+      ],
+      "files": [
+        { "glob": "share/raw/shaders_stable*/blak/blak_frosted_glass.hlsl" },
+        { "glob": "share/raw/techsetdefs_stable*/blak/blak_frosted_glass*.techsetdef" },
+        { "glob": "share/raw/techsetdefs_stable*/include/blak_frosted_glass_base.techsetdef" }
+      ]
+    }
+  ]
+}

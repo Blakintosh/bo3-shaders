@@ -32,7 +32,7 @@ techsetdefs, as the stock techsets do).
 ## Radiant / APE
 `shaders_stable_toolsgfx` and `techsetdefs_stable_toolsgfx` hold the tools versions, which tessellate in Radiant like
 the game does. Requirements, all found 2026-10-10:
-- the `mtplugins/TessTopology` plugin (Patch topology + indexCount, as the linker feature does); Radiant's pass binder
+- the TessTopology MTPlugin (mt-plugins repo; Patch topology + indexCount, as the linker plugin does); Radiant's pass binder
   already binds the hull and domain shaders and the patch topology once the pass is valid;
 - `vertexDecl = "generic"` on the local shader under `TOOLSGFX` (see `include/blak_tess_base`): Radiant
   builds a pass's input layouts from `vertexDecl`, and without one the binder bails out silently (this, not a missing
@@ -45,15 +45,21 @@ switches the camera to `gScene.wldCameraPosition`, skinning to the tools' own ch
 ## Requirements
 
 - The tessellation linker feature. Dragon has it built in and on by default. With the stock linker, install the
-  bo3-linker-patches hook and set `"tessellation": true` in the map's `linker.json`. Without it nothing tessellated
-  draws.
+  bo3-mt-patches linker hook and its tessellation plugin (on by default; `"tessellation": false` in a map's
+  `linker.json` turns it off). Without it nothing tessellated draws.
 - Spacing, near and far are material settings only when Dragon links the map (it stores the local shader's
   constants). Stock leaves that constant group empty and the game doesn't rebind it, so a stock-linked local shader
   reads a stale buffer (in testing: the previous zone's values). Out-of-range values fall back to `TESS_SPACING` /
   `TESS_NEAR` / `TESS_FAR` (8 / 256 / 2048), but on stock-linked maps don't rely on the material's values.
-- Radiant / APE: the TessTopology MTPlugin (bo3-linker-patches `mtplugins/TessTopology`); without it tessellated
-  surfaces don't draw in the editors.
-- Optional: the cod2map hook (bo3-linker-patches `cod2map/`) for bullet collision that follows displaced patches.
+- Bullet collision that follows displaced patches: the bo3-mt-patches cod2map hook and its tessellation plugin, plus
+  `source_data	ess_shot.gdt` (see Collision below). The installer treats it as required, so shots land where the
+  surface is drawn.
+- Radiant / APE: the TessTopology MTPlugin (mt-plugins repo, needs MTPlugins); without it tessellated surfaces don't
+  draw in the editors.
+
+In installer terms (`components.json`), `blak-tessellation` requires `link.tessellation` (Dragon, or bo3-mt-patches'
+`mtp-linker-tessellation`) and `compile.tess-collision` (`mtp-cod2map-tess-collision`), and recommends
+`editor.tess-preview` (TessTopology).
 
 ## Controls
 
@@ -201,9 +207,9 @@ full in the middle, mode 2 inverted at the ends, mode 3 twice as deep in the mid
 
 ## Collision for displaced surfaces
 
-For patches, use the cod2map hook (`cod2map/`, verified in game 2026-10-16). It compiles a bullet-only collision patch
+For patches, use the bo3-mt-patches cod2map hook and its tessellation plugin (verified in game 2026-10-16). It compiles a bullet-only collision patch
 that follows the displaced surface of every tessellated patch, and leaves the flat patch to movement only, so impacts
-land on the relief. Install it once, add `tess_shot.gdt` and set `"tessellation": true`. For brushes:
+land on the relief. Install it once and add `tess_shot.gdt`; it's on by default. For brushes:
 
 For bullets and other line traces, prefer `runtime/tess_trace` (a trace hook plus a baked side file: nothing is added to
 the map). The brush-baking tool below is for when players and AI must collide with the relief too.
