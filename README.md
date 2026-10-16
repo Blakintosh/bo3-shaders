@@ -11,17 +11,30 @@ deps/shaders_stable_toolsgfx/ -> share/raw/shaders_stable_toolsgfx (shared heade
 techsets/                   -> share/raw/techsetdefs_stable  and  techsetdefs_stable_toolsgfx
 ```
 
-Everything installs under `blak/` with `blak_`-prefixed file names, so it can't clash with other shader packs (the
-shader cache keys sources by file name alone, ignoring the folder). Headers must be `.h` and sit one folder deep: the
-linker can't open includes nested deeper.
+Everything installs one folder deep under `blak/`, which keeps it apart from other packs on disk and in the game's
+shader cache (keyed by the full path and the content). Radiant and APE key their cache by bare file name, so every
+file a techset compiles (`source = ...`) carries the `blak_` prefix; include-only files don't need it (they're never
+cached by name) and are `.h`, with `BLAK_` include guards. Includes go one folder deep (`blak/x.h`): a deeper one
+failed to open in the stock linker. Game and tools differences live in one file under `TOOLSGFX` (`#if TOOLSGFX` in
+HLSL, `#if TOOLSGFX == "1"` in techsetdefs, as the stock techsets do).
 
 - `./sync.sh [bo3 root]` copies the shaders, headers and techsets into both the game and tools sets.
-- `./compile_check.sh [shader]` compiles every variant with fxc straight from the repo (no install needed): game and
-  tools, `mc/` (skinned) and `wc/` (world), and OIT. Run it before linking.
+- `./compile_check.sh [shader]` compiles every variant with fxc straight from the repo (no install needed): each entry
+  point the file has (local, hull, domain, vertex, pixel), game and tools, `mc/` (skinned) and `wc/` (world), OIT, and
+  the blend layer counts. Run it before linking.
 
 The shared headers (`blak/blak_common.h` and what it includes: transforms, skinning, the game and tools constant
 buffers) are community headers built from the Mod Tools' shaders (see Credits), renamed and with their include guards
 prefixed. The game and tools copies differ, so each set has its own.
+
+## Tessellation, displacement and parallax
+
+`lit_advanced_fullspec_parallax` (POM), `lit_advanced_fullspec_parallax_tess` (tessellated and displaced),
+`lit_advanced_fullspec_blend_tess` (two layers by vertex alpha) and `lit_advanced_fullspec_blend2_tess` /
+`blend3_tess` / `blend4_tess` (2-4 layers by vertex colour, alpha scales the height), plus the decals that follow
+them: `lit_decal_reveal_conform`, `lit_decal_conform` and `lit_decal_reveal_tess`. They need the tessellation linker
+feature (built into Dragon; the stock linker needs the bo3-linker-patches hook) and, to show in Radiant / APE, the
+TessTopology MTPlugin. Controls, modes and what was verified: [docs/tessellation.md](docs/tessellation.md).
 
 ## Frosted glass (`blak_frosted_glass`, `blak_frosted_glass_world`)
 

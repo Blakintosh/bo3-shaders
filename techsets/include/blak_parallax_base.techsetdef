@@ -1,0 +1,46 @@
+
+// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+float1( "tessSize" )
+{
+	x = <tessSize>
+	tweak = Tweak()
+	{
+		category	= "Parallax"
+		title		= "Height Scale"
+		sortindex	= "0"
+	}
+}
+
+#if TOOLSGFX == "1"
+float1( "cg00_x" )
+{
+	x = <cg00_x>
+	tweak = Tweak()
+	{
+		category	= "Parallax"
+		title		= "Max Samples"
+		sortindex	= "1"
+	}
+}
+
+float1( "cg00_y" )
+{
+	x = <cg00_y>
+	tweak = Tweak()
+	{
+		category	= "Parallax"
+		title		= "Sample Iterations"
+		sortindex	= "2"
+	}
+}
+
+#endif
+// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+Texture( "heightMap" )
+{
+	image = Image( <colorMap08, $white_reveal> )
+	semantic = "revealMap"
+	tweak = Tweak( "Parallax", "Height Map", "40" )
+}

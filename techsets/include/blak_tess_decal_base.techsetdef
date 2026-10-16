@@ -1,0 +1,22 @@
+// Shared by the blak *_tess decal techsets: the tessellation controls (blak_tess_base) plus the decal lift, and the
+// domain shader that makes a stock decal pixel shader draw on displaced geometry (blak/blak_gbuffer_tess_decal.hlsl
+// explains how a decal inherits the topology of the material under it).
+
+#include "blak_tess_base"
+#include "ao_base"
+
+float1( "tessDecalLift" )
+{
+	x = <cg13_w>
+	tweak = Tweak()
+	{
+		category  = "Tessellation"
+		title     = "Decal: Lift off the Surface (units; hides z-fighting with the host)"
+		sortindex = "38"
+	}
+}
+
+DomainShader( "ds_tess_decal" )
+{
+	source = "blak/blak_gbuffer_tess_decal.hlsl"
+}

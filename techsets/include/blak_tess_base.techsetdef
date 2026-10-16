@@ -1,0 +1,151 @@
+// Shared by the blak *_tess techsets: the tessellation material controls, the 3-control-point patch list and the
+// local/hull shaders (blak/blak_tess_common.hlsl, which documents the controls). Each techset adds its own DomainShader.
+//
+// Needs the tessellation linker feature ("tessellation": true in the map's linker.json): the stock linker with the
+// bo3-linker-patches hook plugin, or bb-linker. Without it patch3 links as a 1-control-point patch list and the
+// tessellated passes draw nothing. Spacing, near and far are honoured only when bb-linker links the map (stock
+// leaves the local shader's constants empty); otherwise TESS_SPACING / TESS_NEAR / TESS_FAR apply.
+
+float1( "tessSpacing" )
+{
+	x = <cg10_x>
+	tweak = Tweak()
+	{
+		category  = "Tessellation"
+		title     = "Vertex Spacing Up Close (units, 0 = 8; bb-linker only)"
+		sortindex = "0"
+	}
+}
+
+float1( "tessDisplace" )
+{
+	x = <cg10_y>
+	tweak = Tweak()
+	{
+		category  = "Tessellation"
+		title     = "Displacement Height (units, 0 = flat)"
+		sortindex = "10"
+	}
+}
+
+float1( "tessMid" )
+{
+	x = <cg10_z>
+	tweak = Tweak()
+	{
+		category  = "Tessellation"
+		title     = "Displacement Midpoint (0..1)"
+		sortindex = "20"
+	}
+}
+
+// The stock "wireframe" technique (debug_shared, pulled in by lit_base_mid) is untessellated and can't be
+// overridden (the first Technique definition wins); these tint the surface instead.
+float1( "tessDebug" )
+{
+	x = <cg10_w>
+	tweak = Tweak()
+	{
+		category  = "Tessellation"
+		title     = "Debug: 1 = Tint Each Vertex, 2 = Heat Map of Detail, 3 = Alpha Ramp Along X"
+		sortindex = "60"
+	}
+}
+
+float1( "tessNear" )
+{
+	x = <cg11_x>
+	tweak = Tweak()
+	{
+		category  = "Tessellation"
+		title     = "Full Detail Within (units, 0 = 256; bb-linker only)"
+		sortindex = "2"
+	}
+}
+
+float1( "tessFar" )
+{
+	x = <cg11_y>
+	tweak = Tweak()
+	{
+		category  = "Tessellation"
+		title     = "No Tessellation or Displacement Beyond (units, 0 = 2048; bb-linker only)"
+		sortindex = "4"
+	}
+}
+
+float1( "tessWorldScale" )
+{
+	x = <cg11_z>
+	tweak = Tweak()
+	{
+		category  = "Tessellation"
+		title     = "World Mapping: Units per Repeat (0 = mesh UVs)"
+		sortindex = "30"
+	}
+}
+
+float1( "tessMask" )
+{
+	x = <cg11_w>
+	tweak = Tweak()
+	{
+		category  = "Tessellation"
+		title     = "Vertex Alpha Scales Displacement (0 off, 1 = 0..1, 2 = -1..1, 3 = 0..2)"
+		sortindex = "40"
+	}
+}
+
+float1( "tessWorldAxis" )
+{
+	x = <cg13_x>
+	tweak = Tweak()
+	{
+		category  = "Tessellation"
+		title     = "World Mapping Axis (1 X, 2 Y, 3 or 0 Z; negative = other way)"
+		sortindex = "32"
+	}
+}
+
+float1( "tessAnchor" )
+{
+	x = <cg13_y>
+	tweak = Tweak()
+	{
+		category  = "Tessellation"
+		title     = "World Mapping: Anchor Plane (world coordinate on the axis)"
+		sortindex = "34"
+	}
+}
+
+float1( "tessAnchorFade" )
+{
+	x = <cg13_z>
+	tweak = Tweak()
+	{
+		category  = "Tessellation"
+		title     = "World Mapping: Anchor Fade (units, 0 = no anchor)"
+		sortindex = "36"
+	}
+}
+
+// 3-control-point patch list (topology 35 with the linker feature).
+PrimitiveType( "patch3" )
+{
+	value = "Patch"
+	indexCount = 3
+}
+
+LocalShader( "ls_tess" )
+{
+	source = "blak/blak_tess_common.hlsl"
+	primitiveType = "patch3"
+#if TOOLSGFX == "1"
+	vertexDecl = "generic"
+#endif
+}
+
+HullShader( "hs_tess" )
+{
+	source = "blak/blak_tess_common.hlsl"
+}

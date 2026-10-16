@@ -1,0 +1,98 @@
+// lit_advanced_fullspec_parallax with hardware tessellation and displacement on the gbuffer passes. Controls,
+// modes and the linker requirement: include/blak_tess_base.techsetdef and blak/blak_tess_common.hlsl.
+// The shadow pass is tessellated and displaced the same way (blak/blak_shadow_tess.hlsl).
+
+#include "lit_base_mid"
+#include "blak_parallax_base"
+#include "blak_tess_base"
+
+Globals()
+{
+	category = "Geometry Advanced"
+	renderFlags = "lit deferred opaque"
+	availablePrefixes = "mc/ mcs/ wc/"
+}
+
+// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+Texture( "specColorMap" )
+{
+	image = Image( <specColorMap, $specular> )
+	semantic = "specularMap"
+	tweak = Tweak()
+	{
+		category  = "Specular and Gloss"
+		title     = "Specular Map"
+		sortindex = "20"
+	}
+}
+
+DomainShader( "ds_tess_parallax" )
+{
+	source = "blak/blak_gbuffer_tess_lit_parallax.hlsl"
+}
+
+DomainShader( "ds_tess_shadow" )
+{
+	source = "blak/blak_shadow_tess.hlsl"
+}
+
+// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+Technique( "build shadowmap depth" )
+{
+	state = "buildShadowmap"
+	ls = LocalShader() : "ls_tess" {}
+	hs = HullShader() : "hs_tess" {}
+	ds = DomainShader() : "ds_tess_shadow" {}
+	ps = PixelShader()
+	{
+		source = "blak/blak_shadow_tess.hlsl"
+	}
+}
+
+#if TETRAHEDRON_OMNI_SHADOWS=="1"
+Technique( "build shadowmap depth planes" ) : "build shadowmap depth planes base"
+{}
+#endif
+
+Technique( "build shadowmap depth layered" ) :  "build shadowmap depth layered base"
+{}
+
+Technique( "unlit" )
+{
+	state = "replace + depth"
+	defines = "USE_COLOR_TINT"
+	source = "techsetdef_unlit_simple.hlsl"
+	vs = "vs_generic"
+	ps = "ps_generic"
+}
+
+Technique( "gbuffer" )
+{
+	state = "gbuffer opaque"
+	defines = "USE_COLOR_SPEC", "USE_COLOR_TINT"
+	ls = LocalShader() : "ls_tess" {}
+	hs = HullShader() : "hs_tess" {}
+	ds = DomainShader() : "ds_tess_parallax" {}
+	ps = PixelShader() : "ps_generic"
+	{
+		source = "blak/blak_gbuffer_ps_lit_parallax.hlsl"
+	}
+}
+
+Technique( "gbuffer motion vector" ) : "gbuffer"
+{
+	defines += "GENERATE_MOTION_VECTOR"
+}
+
+Technique( "debug color texel" )
+{
+	state = "replace + depth"
+	source = "ToolsGfx/debug_texeldensity.hlsl"
+	vs = "vs_generic"
+	ps = PixelShader() : "ps_generic"
+	{
+		defines = "DEBUG_COLOR_TEXELS"
+	}
+}

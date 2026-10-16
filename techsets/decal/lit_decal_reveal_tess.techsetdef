@@ -1,0 +1,70 @@
+// lit_decal_reveal with the gbuffer pass tessellated and displaced like the surface it lies on. Give it the host's
+// height map and tessellation controls (world mode); see blak/blak_gbuffer_tess_decal.hlsl and the README.
+// In game the tint-mask slot (colorMap00) holds the host height map for the domain shader; keep colorTint white (the
+// pixel shader is the stock one with its stock defines: its source is not on disk, only its precompiled variants). The
+// tools take it from heightMap (below).
+// Needs the tessellation linker feature, like the other *_tess techsets.
+
+#include "lit_base_basic"
+#include "lit_decal_base.inc"
+#include "reveal_base"
+#include "blak_tess_decal_base"
+
+Globals()
+{
+	category = "Decal"
+	renderFlags = "reveal decal renderflags"
+	availablePrefixes = "mc/ mcs/ wc/ /"
+}
+
+Texture( "tintMask" )
+{
+	image = Image()
+	{
+		map = <colorMap00, $white_reveal>
+	}
+	semantic = "revealMap"
+	tweak = Tweak()
+	{
+		category  = "Color"
+		title     = "Tint Mask"
+		sortindex = "20"
+	}
+}
+
+#if TOOLSGFX == "1"
+// The host height map goes last: the textures take their slots in declaration order, so the stock ones must keep theirs.
+Texture( "heightMap" )
+{
+	image = Image( <colorMap08, $white_reveal> )
+	semantic = "revealMap"
+	tweak = Tweak( "Tessellation", "Host Height Map (same image as the surface under the decal)", "50" )
+}
+
+#endif
+Technique( "unlit" ) : "base lit decal unlit"
+{
+	defines += "USE_REVEAL_MAP"
+}
+
+Technique( "gbuffer" )
+{
+	state = "base gbuffer decal state"
+	source = "gbuffer_decal.hlsl"
+	defines = "USE_REVEAL_MAP", "BASE_TEXTURES", "USE_COLOR_TINT", "USE_TINT_MASK"
+	ls = LocalShader() : "ls_tess" {}
+	hs = HullShader() : "hs_tess" {}
+	ds = DomainShader() : "ds_tess_decal" {}
+	ps = "ps_generic"
+}
+
+Technique( "debug color texel" )
+{
+	state = "blend + depth + decal"
+	source = "ToolsGfx/debug_texeldensity.hlsl"
+	vs = "vs_generic"
+	ps = PixelShader()
+	{
+		defines = "DEBUG_COLOR_TEXELS", "USE_REVEAL_MAP"
+	}
+}

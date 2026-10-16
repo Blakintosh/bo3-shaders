@@ -1,0 +1,254 @@
+// 4-layer blend with hardware tessellation, displacement and parallax: vertex colour picks the layers (paint
+// R for layer 2, G for layer 3, B for layer 4 down from white; unpainted is layer 1; where several are painted the later
+// channel wins), each sharpened by the layers' heights (blak/tess_blend.h). Vertex alpha scales the
+// displacement (Vertex Alpha Scales Displacement, cg11_w: 0..1 unless set). Otherwise as
+// lit_advanced_fullspec_parallax_tess: controls, modes and the linker requirement in
+// include/blak_tess_base.techsetdef and blak/blak_tess_common.hlsl. lit_advanced_fullspec_blend_tess is the older
+// two-layer version blended by vertex alpha.
+// Layer 3 maps use colorMap00-04, layer 4 colorMap05-07, 14, 15.
+
+#include "lit_base_mid"
+#include "blak_parallax_base"
+#include "blak_tess_base"
+
+Globals()
+{
+	category = "Geometry Advanced"
+	renderFlags = "lit deferred opaque"
+	availablePrefixes = "mc/ mcs/ wc/"
+}
+
+// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+Texture( "specColorMap" )
+{
+	image = Image( <specColorMap, $specular> )
+	semantic = "specularMap"
+	tweak = Tweak()
+	{
+		category  = "Specular and Gloss"
+		title     = "Specular Map"
+		sortindex = "20"
+	}
+}
+
+Texture( "colorMap2" )
+{
+	image = Image( <colorMap09, $white_diffuse> )
+	semantic = "diffuseMap"
+	tweak = Tweak( "Layer 2 (vertex R)", "Color Map", "10" )
+}
+
+Texture( "normalMap2" )
+{
+	image = Image( <colorMap10, $identitynormalmap> )
+	semantic = "normalMap"
+	tweak = Tweak( "Layer 2 (vertex R)", "Normal Map", "20" )
+}
+
+Texture( "specColorMap2" )
+{
+	image = Image( <colorMap11, $specular> )
+	semantic = "specularMap"
+	tweak = Tweak( "Layer 2 (vertex R)", "Specular Map", "30" )
+}
+
+Texture( "glossMap2" )
+{
+	image = Image( <colorMap12, $white_gloss> )
+	semantic = "glossMap"
+	tweak = Tweak( "Layer 2 (vertex R)", "Gloss Map", "40" )
+}
+
+Texture( "heightMap2" )
+{
+	image = Image( <colorMap13, $white_reveal> )
+	semantic = "revealMap"
+	tweak = Tweak( "Layer 2 (vertex R)", "Height Map", "50" )
+}
+
+float1( "tessBlendContrast" )
+{
+	x = <cg12_x>
+	tweak = Tweak()
+	{
+		category  = "Layer 2 (vertex R)"
+		title     = "Blend Softness (0 = 0.2)"
+		sortindex = "60"
+	}
+}
+
+float1( "tessLayer2Height" )
+{
+	x = <cg12_y>
+	tweak = Tweak()
+	{
+		category  = "Layer 2 (vertex R)"
+		title     = "Height Strength (0 = flat, 1 = as authored)"
+		sortindex = "70"
+	}
+}
+
+Texture( "colorMap3" )
+{
+	image = Image( <colorMap00, $white_diffuse> )
+	semantic = "diffuseMap"
+	tweak = Tweak( "Layer 3 (vertex G)", "Color Map", "10" )
+}
+
+Texture( "normalMap3" )
+{
+	image = Image( <colorMap01, $identitynormalmap> )
+	semantic = "normalMap"
+	tweak = Tweak( "Layer 3 (vertex G)", "Normal Map", "20" )
+}
+
+Texture( "specColorMap3" )
+{
+	image = Image( <colorMap02, $specular> )
+	semantic = "specularMap"
+	tweak = Tweak( "Layer 3 (vertex G)", "Specular Map", "30" )
+}
+
+Texture( "glossMap3" )
+{
+	image = Image( <colorMap03, $white_gloss> )
+	semantic = "glossMap"
+	tweak = Tweak( "Layer 3 (vertex G)", "Gloss Map", "40" )
+}
+
+Texture( "heightMap3" )
+{
+	image = Image( <colorMap04, $white_reveal> )
+	semantic = "revealMap"
+	tweak = Tweak( "Layer 3 (vertex G)", "Height Map", "50" )
+}
+
+float1( "tessLayer3Height" )
+{
+	x = <cg12_z>
+	tweak = Tweak()
+	{
+		category  = "Layer 3 (vertex G)"
+		title     = "Height Strength (0 = flat, 1 = as authored)"
+		sortindex = "70"
+	}
+}
+
+Texture( "colorMap4" )
+{
+	image = Image( <colorMap05, $white_diffuse> )
+	semantic = "diffuseMap"
+	tweak = Tweak( "Layer 4 (vertex B)", "Color Map", "10" )
+}
+
+Texture( "normalMap4" )
+{
+	image = Image( <colorMap06, $identitynormalmap> )
+	semantic = "normalMap"
+	tweak = Tweak( "Layer 4 (vertex B)", "Normal Map", "20" )
+}
+
+Texture( "specColorMap4" )
+{
+	image = Image( <colorMap07, $specular> )
+	semantic = "specularMap"
+	tweak = Tweak( "Layer 4 (vertex B)", "Specular Map", "30" )
+}
+
+Texture( "glossMap4" )
+{
+	image = Image( <colorMap14, $white_gloss> )
+	semantic = "glossMap"
+	tweak = Tweak( "Layer 4 (vertex B)", "Gloss Map", "40" )
+}
+
+Texture( "heightMap4" )
+{
+	image = Image( <colorMap15, $white_reveal> )
+	semantic = "revealMap"
+	tweak = Tweak( "Layer 4 (vertex B)", "Height Map", "50" )
+}
+
+float1( "tessLayer4Height" )
+{
+	x = <cg12_w>
+	tweak = Tweak()
+	{
+		category  = "Layer 4 (vertex B)"
+		title     = "Height Strength (0 = flat, 1 = as authored)"
+		sortindex = "70"
+	}
+}
+
+DomainShader( "ds_tess_blend" )
+{
+	source = "blak/blak_gbuffer_tess_lit_blend.hlsl"
+}
+
+DomainShader( "ds_tess_shadow" )
+{
+	source = "blak/blak_shadow_tess.hlsl"
+	defines = "TESS_HEIGHT_BLEND", "BLEND_RGB_LAYERS 4"
+}
+
+// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+Technique( "build shadowmap depth" )
+{
+	state = "buildShadowmap"
+	ls = LocalShader() : "ls_tess" {}
+	hs = HullShader() : "hs_tess" {}
+	ds = DomainShader() : "ds_tess_shadow" {}
+	ps = PixelShader()
+	{
+		source = "blak/blak_shadow_tess.hlsl"
+		defines = "TESS_HEIGHT_BLEND", "BLEND_RGB_LAYERS 4"
+	}
+}
+
+#if TETRAHEDRON_OMNI_SHADOWS=="1"
+Technique( "build shadowmap depth planes" ) : "build shadowmap depth planes base"
+{}
+#endif
+
+Technique( "build shadowmap depth layered" ) :  "build shadowmap depth layered base"
+{}
+
+Technique( "unlit" )
+{
+	state = "replace + depth"
+	defines = "USE_COLOR_TINT"
+	source = "techsetdef_unlit_simple.hlsl"
+	vs = "vs_generic"
+	ps = "ps_generic"
+}
+
+Technique( "gbuffer" )
+{
+	state = "gbuffer opaque"
+	defines = "USE_COLOR_SPEC", "USE_COLOR_TINT", "BLEND_RGB_LAYERS 4"
+	ls = LocalShader() : "ls_tess" {}
+	hs = HullShader() : "hs_tess" {}
+	ds = DomainShader() : "ds_tess_blend" {}
+	ps = PixelShader() : "ps_generic"
+	{
+		source = "blak/blak_gbuffer_ps_lit_blend.hlsl"
+	}
+}
+
+Technique( "gbuffer motion vector" ) : "gbuffer"
+{
+	defines += "GENERATE_MOTION_VECTOR"
+}
+
+Technique( "debug color texel" )
+{
+	state = "replace + depth"
+	source = "ToolsGfx/debug_texeldensity.hlsl"
+	vs = "vs_generic"
+	ps = PixelShader() : "ps_generic"
+	{
+		defines = "DEBUG_COLOR_TEXELS"
+	}
+}

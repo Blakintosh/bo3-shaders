@@ -1,0 +1,90 @@
+// lit_decal whose gbuffer pass takes the height of whatever is rendered under it: tessellated, then each vertex
+// slides along the decal's normal onto the visible surface in the scene depth. No host settings needed; the tint mask
+// is the stock one again. See blak/blak_gbuffer_tess_decal_conform.hlsl.
+// Controls: Displacement Height (cg10_y) = search range either side of the decal (units, 0 = 16), Decal Lift (cg13_w).
+// Needs the tessellation linker feature, like the other *_tess techsets. In the tools, the TessTopology MTPlugin binds
+// the scene depth and viewport (see below).
+
+#include "lit_base_basic"
+#include "lit_decal_base.inc"
+#include "blak_tess_decal_base"
+
+Globals()
+{
+	category = "Decal"
+	renderFlags = "base decal renderflags"
+	availablePrefixes = "mc/ mcs/ wc/ /"
+}
+
+Texture( "tintMask" )
+{
+	image = Image()
+	{
+		map = <colorMap00, $white_reveal>
+	}
+	semantic = "revealMap"
+	tweak = Tweak()
+	{
+		category  = "Color"
+		title     = "Tint Mask"
+		sortindex = "20"
+	}
+}
+
+#if TOOLSGFX == "1"
+// Placeholders for the domain shader's scene depth and viewport: the tools give a domain shader no code textures, so
+// these keep the technique valid and the TessTopology MTPlugin binds the real ones before each draw (without it the
+// decal stays flat).
+Texture( "iSceneDepth" )
+{
+	image = Image( $white_reveal )
+	semantic = "revealMap"
+}
+
+Texture( "iConformViewport" )
+{
+	image = Image( $white_reveal )
+	semantic = "revealMap"
+}
+
+#endif
+DomainShader( "ds_tess_decal_conform" )
+{
+	source = "blak/blak_gbuffer_tess_decal_conform.hlsl"
+}
+
+Technique( "unlit" ) : "base lit decal unlit"
+{
+}
+
+Technique( "gbuffer" )
+{
+	state = "base gbuffer decal state"
+	source = "gbuffer_decal.hlsl"
+	defines = "BASE_TEXTURES", "USE_COLOR_TINT", "USE_TINT_MASK"
+	ls = LocalShader() : "ls_tess"
+	{
+		defines = "TESS_SPACING_FORCE 3.0"
+	}
+	hs = HullShader() : "hs_tess" {}
+#if TOOLSGFX == "1"
+	ds = DomainShader() : "ds_tess_decal_conform" {}
+#else
+	ds = DomainShader() : "ds_tess_decal_conform"
+	{
+		iSceneDepth = CodeTexture( "floatZSampler" )
+	}
+#endif
+	ps = "ps_generic"
+}
+
+Technique( "debug color texel" )
+{
+	state = "blend + depth + decal"
+	source = "ToolsGfx/debug_texeldensity.hlsl"
+	vs = "vs_generic"
+	ps = PixelShader()
+	{
+		defines = "DEBUG_COLOR_TEXELS"
+	}
+}
