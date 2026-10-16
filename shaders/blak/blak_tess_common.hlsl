@@ -6,7 +6,7 @@
 // - The game binds material/code SRVs (instance and bone buffers, textures) only to the VS, PS and DS stages, not to
 //   the LS or HS. So the LS only decodes and passes the vertex through (object space), and the DS skins, transforms
 //   and displaces each control point.
-// - The HS never gets material constants. The LS gets them only when bb-linker linked the map with the Tessellation
+// - The HS never gets material constants. The LS gets them only when Dragon linked the map with the Tessellation
 //   feature. Stock leaves the LS's constant group empty and the game then doesn't rebind it, so a stock-linked LS
 //   reads whatever buffer an earlier draw left bound (checked 2026-10-09: the same density whatever the material
 //   said). Values outside a sane range fall back to TESS_SPACING / TESS_NEAR / TESS_FAR (a technique can override
@@ -70,7 +70,7 @@
 #endif
 #define TESS_MAX_FACTOR 63.0	// fractional_odd's maximum
 
-// Read in the LS (bb-linker only, see above).
+// Read in the LS (Dragon only, see above).
 float tessSpacing;
 float tessNear;
 float tessFar;

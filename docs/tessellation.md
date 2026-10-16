@@ -1,8 +1,8 @@
 # Tessellation, displacement and parallax
 
 Hardware tessellation, displacement and parallax for BO3 world geometry and models. The files are in this repo's
-`shaders/blak/` and `techsets/` (`./sync.sh` installs them into the game and tools sets); the test materials
-(`zz_tess_test.gdt`) are in `bo3-linker-patches`.
+`shaders/blak/` and `techsets/` (`./sync.sh` installs them into the game and tools sets, and the Blak Shaders setup
+installs them for users).
 
 | Techset | What |
 |---|---|

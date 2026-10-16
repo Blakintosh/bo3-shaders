@@ -2,8 +2,8 @@
 // local/hull shaders (blak/blak_tess_common.hlsl, which documents the controls). Each techset adds its own DomainShader.
 //
 // Needs the tessellation linker feature ("tessellation": true in the map's linker.json): the stock linker with the
-// bo3-linker-patches hook plugin, or bb-linker. Without it patch3 links as a 1-control-point patch list and the
-// tessellated passes draw nothing. Spacing, near and far are honoured only when bb-linker links the map (stock
+// bo3-mt-patches linker plugin, or Dragon. Without it patch3 links as a 1-control-point patch list and the
+// tessellated passes draw nothing. Spacing, near and far are honoured only when Dragon links the map (stock
 // leaves the local shader's constants empty); otherwise TESS_SPACING / TESS_NEAR / TESS_FAR apply.
 
 float1( "tessSpacing" )
@@ -12,7 +12,7 @@ float1( "tessSpacing" )
 	tweak = Tweak()
 	{
 		category  = "Tessellation"
-		title     = "Vertex Spacing Up Close (units, 0 = 8; bb-linker only)"
+		title     = "Vertex Spacing Up Close (units, 0 = 8; Dragon only)"
 		sortindex = "0"
 	}
 }
@@ -58,7 +58,7 @@ float1( "tessNear" )
 	tweak = Tweak()
 	{
 		category  = "Tessellation"
-		title     = "Full Detail Within (units, 0 = 256; bb-linker only)"
+		title     = "Full Detail Within (units, 0 = 256; Dragon only)"
 		sortindex = "2"
 	}
 }
@@ -69,7 +69,7 @@ float1( "tessFar" )
 	tweak = Tweak()
 	{
 		category  = "Tessellation"
-		title     = "No Tessellation or Displacement Beyond (units, 0 = 2048; bb-linker only)"
+		title     = "No Tessellation or Displacement Beyond (units, 0 = 2048; Dragon only)"
 		sortindex = "4"
 	}
 }
